@@ -28,7 +28,7 @@ function MediaCard({ media, onClick }) {
         <>
           {/* natural height -> masonry card heights differ per photo */}
           <Image
-            src={media.url}
+            src={media.thumbnailUrl || media.url}
             alt={media.fileName}
             preview={false}
             rootClassName="pin-card__image"

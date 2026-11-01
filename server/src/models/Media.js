@@ -12,7 +12,7 @@ const mediaSchema = new mongoose.Schema(
     folder: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Folder',
-      required: false,
+      default: null,
       index: true,
     },
 
@@ -29,9 +29,26 @@ const mediaSchema = new mongoose.Schema(
       unique: true,
     },
 
+    
     contentType: {
       type: String,
       required: true,
+    },
+    
+    thumbnailObjectKey: {
+      type: String,
+      default: null,
+    },
+
+    thumbnailContentType: {
+      type: String,
+      default: null,
+    },
+
+    thumbnailSize: {
+      type: Number,
+      default: null,
+      min: 0,
     },
 
     size: {

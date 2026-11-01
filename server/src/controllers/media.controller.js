@@ -1,6 +1,13 @@
 import mongoose from 'mongoose';
 
-import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+} from '@aws-sdk/client-s3';
+
+import { generateThumbnail } from '../utils/mediaThumbnail.js';
 import {getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 import { s3 } from '../config/s3.js';
@@ -182,6 +189,7 @@ export async function createUploadUrl(request, response, next) {
   }
 }
 
+
 export async function completeUpload(request, response, next) {
   try {
     const { mediaId } = request.params;
@@ -203,6 +211,49 @@ export async function completeUpload(request, response, next) {
       });
     }
 
+    // Make completion idempotent.
+    if (media.status === 'uploaded') {
+      return response.json({
+        media: media.toJSON(),
+      });
+    }
+
+    // Verify that the original object really exists in S3.
+    const head = await s3.send(
+      new HeadObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: media.objectKey,
+      }),
+    );
+
+    if (head.ContentLength !== media.size) {
+      return response.status(400).json({
+        message: 'Uploaded file size does not match.',
+      });
+    }
+
+    if (
+      head.ContentType &&
+      head.ContentType !== media.contentType
+    ) {
+      return response.status(400).json({
+        message: 'Uploaded file type does not match.',
+      });
+    }
+
+    // Generate a thumbnail for supported raster images.
+    if (media.contentType.startsWith('image/')) {
+      const thumbnail = await generateThumbnail(media);
+
+      if (thumbnail) {
+        media.thumbnailObjectKey = thumbnail.thumbnailObjectKey;
+        media.thumbnailContentType = thumbnail.thumbnailContentType;
+        media.thumbnailSize = thumbnail.thumbnailSize;
+        media.width = thumbnail.width;
+        media.height = thumbnail.height;
+      }
+    }
+
     media.status = 'uploaded';
 
     await media.save();
@@ -211,9 +262,11 @@ export async function completeUpload(request, response, next) {
       media: media.toJSON(),
     });
   } catch (error) {
+    console.error('completeUpload error:', error);
     return next(error);
   }
 }
+
 
 
 export const getFolderMedia = async (req, res) => {
