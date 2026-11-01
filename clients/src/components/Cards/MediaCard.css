@@ -150,3 +150,27 @@
     color: rgba(255, 255, 255, 0.8);
   }
 }
+
+
+.pin-card__image-placeholder {
+  width: 100%;
+  min-height: 140px;
+  background: rgba(128, 128, 128, 0.08);
+  animation: thumbnail-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes thumbnail-pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pin-card__image-placeholder {
+    animation: none;
+  }
+}

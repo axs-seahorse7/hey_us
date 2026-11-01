@@ -5,6 +5,9 @@ import { CameraOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import api from '../services/api';
 import MediaGrid from '../components/Grids/MediaGrid';
 import { useMedia } from '../context/MediaContext';
+import { useAuth } from '../Authentication/Context/AuthContext';
+import {cacheMetadata, getCachedMetadata,} from '../services/mediaCache.service';
+
 import { uploadFile } from '../services/gallery.service';
 import './GalleryLayout.css';
 
@@ -57,6 +60,8 @@ function groupImagesByDate(media) {
 
 function GalleryLayout() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.user?._id;
   const { openViewer, setGalleryImages } = useMedia();
   const [messageApi, contextHolder] = message.useMessage();
 
@@ -70,22 +75,53 @@ function GalleryLayout() {
   const fetchImages = useCallback(async () => {
     const response = await api.get('/gallery');
     const media = response.data.media || [];
+
     setImages(media);
     setGalleryImages(media);
-  }, [setGalleryImages]);
+
+    if (userId) {
+      await cacheMetadata(userId, 'gallery', media).catch((error) => {
+        console.warn('[GALLERY METADATA CACHE FAILED]', error);
+      });
+    }
+
+    return media;
+  }, [setGalleryImages, userId]);
 
   const loadInitial = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
+
       await fetchImages();
     } catch (err) {
-      console.error('Error fetching gallery images:', err);
-      setError('Failed to load images. Please try again later.');
+      console.warn('[GALLERY NETWORK FAILED]', err);
+
+      if (userId) {
+        try {
+          const cachedMedia = await getCachedMetadata(
+            userId,
+            'gallery',
+          );
+
+          if (cachedMedia) {
+            setImages(cachedMedia);
+            setGalleryImages(cachedMedia);
+            setError(null);
+
+            console.log('[OFFLINE GALLERY RESTORED]');
+            return;
+          }
+        } catch (cacheError) {
+          console.error('[GALLERY OFFLINE CACHE FAILED]', cacheError);
+        }
+      }
+
+      setError('Unable to load gallery. Please check your internet connection.');
     } finally {
       setIsLoading(false);
     }
-  }, [fetchImages]);
+  }, [fetchImages, setGalleryImages, userId]);
 
   useEffect(() => {
     loadInitial();
