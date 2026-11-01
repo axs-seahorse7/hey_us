@@ -39,25 +39,14 @@ export const getAllMedia = async (req, res) => {
 
     const mediaWithUrls = await Promise.all(
       media.map(async (item) => {
-        const originalCommand = new GetObjectCommand({
-          Bucket: process.env.AWS_S3_BUCKET,
-          Key: item.objectKey,
-        });
-
         const thumbnailCommand = new GetObjectCommand({
           Bucket: process.env.AWS_S3_BUCKET,
           Key: item.thumbnailObjectKey || item.objectKey,
         });
 
-        const [url, thumbnailUrl] = await Promise.all([
-          getSignedUrl(s3, originalCommand, {
-            expiresIn: URL_EXPIRY,
-          }),
-
-          getSignedUrl(s3, thumbnailCommand, {
-            expiresIn: URL_EXPIRY,
-          }),
-        ]);
+        const thumbnailUrl = await getSignedUrl(s3, thumbnailCommand, {
+          expiresIn: URL_EXPIRY,
+        });
 
         return {
           _id: item._id,
@@ -70,8 +59,8 @@ export const getAllMedia = async (req, res) => {
           // Small image for gallery cards
           thumbnailUrl,
 
-          // Original image for full-screen viewer
-          url,
+          // Original URL is fetched on-demand when user opens the viewer
+          url: null,
 
           width: item.width,
           height: item.height,

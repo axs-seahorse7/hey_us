@@ -11,7 +11,9 @@ import {
   RightOutlined,
 } from '@ant-design/icons'
 import { useMedia } from '../context/MediaContext'
+import { useAuth } from '../Authentication/Context/AuthContext'
 import { deleteMedia } from '../services/media.service'
+import { getOrFetchOriginal, markOriginalViewed, removeCachedOriginal } from '../services/mediaCache.service'
 import './MediaViewer.css'
 
 const MIN_ZOOM = 1
@@ -21,6 +23,8 @@ const ZOOM_STEP = 0.5
 function MediaViewer() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const userId = user?.user?._id
   const {
     viewerOpen,
     viewerMedia,
@@ -48,6 +52,144 @@ function MediaViewer() {
 
   const dragRef = useRef({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 })
   const touchRef = useRef({ startDistance: 0, startZoom: 1, lastTap: 0 })
+
+  // The viewer keeps only the active original as an object URL.
+  // Original blobs persist in IndexedDB; speculative preloads stay as blobs there.
+  const [activeOriginalUrl, setActiveOriginalUrl] = useState('')
+  const [activeOriginalMediaId, setActiveOriginalMediaId] = useState('')
+  const [originalLoading, setOriginalLoading] = useState(false)
+  const [originalImageLoaded, setOriginalImageLoaded] = useState(false)
+  const [originalError, setOriginalError] = useState('')
+  const activeObjectUrlRef = useRef('')
+  const preloadRunRef = useRef(0)
+
+  const revokeActiveObjectUrl = useCallback(() => {
+    if (activeObjectUrlRef.current) {
+      URL.revokeObjectURL(activeObjectUrlRef.current)
+      activeObjectUrlRef.current = ''
+    }
+    setActiveOriginalUrl('')
+    setActiveOriginalMediaId('')
+    setOriginalImageLoaded(false)
+  }, [])
+
+ 
+  useEffect(() => {
+    if (
+      !viewerOpen ||
+      !currentMedia ||
+      !userId ||
+      !currentMedia.contentType?.startsWith('image/')
+    ) {
+      revokeActiveObjectUrl()
+      setOriginalLoading(false)
+      setOriginalError('')
+      return
+    }
+
+    let cancelled = false
+    const mediaId = String(currentMedia._id)
+
+    revokeActiveObjectUrl()
+    setOriginalLoading(false)
+    setOriginalImageLoaded(false)
+    setOriginalError('')
+
+    console.log('[ORIGINAL LOAD STARTED]', mediaId)
+
+    getOrFetchOriginal(userId, mediaId, 'viewed', {
+      onCacheMiss: () => {
+        if (!cancelled) {
+          console.log('[CACHE MISS] Downloading original from S3:', mediaId)
+          setOriginalLoading(true)
+        }
+      },
+    })
+      .then(async (blob) => {
+        if (cancelled) return
+
+        await markOriginalViewed(userId, mediaId).catch((error) => {
+          console.warn('Could not update media cache usage:', error)
+        })
+
+        if (cancelled) return
+
+        const objectUrl = URL.createObjectURL(blob)
+        activeObjectUrlRef.current = objectUrl
+
+        setActiveOriginalMediaId(mediaId)
+        setActiveOriginalUrl(objectUrl)
+
+        console.log('[ORIGINAL READY]', {
+          mediaId,
+          size: blob.size,
+          source: 'IndexedDB or S3',
+        })
+      })
+       .catch((error) => {
+        console.error('[ORIGINAL RETRY FAILED]', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+        });
+
+        setOriginalLoading(false);
+        setOriginalError(`${error.name}: ${error.message}`);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setOriginalLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [ viewerOpen, currentMedia?._id, currentMedia?.contentType, userId, revokeActiveObjectUrl])
+
+  // After the current original has loaded, preload at most the next two images.
+  // Downloads are sequential, and stale preload runs stop before starting another item.
+  useEffect(() => {
+    if (!viewerOpen || !currentMedia || !userId || !activeOriginalUrl || !originalImageLoaded) return
+
+    const runId = ++preloadRunRef.current
+    let cancelled = false
+
+    async function preloadNextImages() {
+      const candidates = viewerMedia
+        .slice(viewerIndex + 1, viewerIndex + 3)
+        .filter((item) => item?.contentType?.startsWith('image/'))
+
+      for (const item of candidates) {
+        if (cancelled || preloadRunRef.current !== runId) return
+
+        try {
+          await getOrFetchOriginal(userId, String(item._id), 'prefetch')
+        } catch (error) {
+          // A failed speculative preload is retried naturally when the user opens it.
+          console.warn('Background media preload failed:', item._id, error)
+        }
+      }
+    }
+
+    preloadNextImages()
+
+    return () => {
+      cancelled = true
+    }
+  }, [viewerOpen, currentMedia?._id, viewerIndex, viewerMedia, userId, activeOriginalUrl, originalImageLoaded])
+
+  // Release the active Blob URL when the viewer closes or this component unmounts.
+  useEffect(() => {
+    if (!viewerOpen) {
+      preloadRunRef.current += 1
+      revokeActiveObjectUrl()
+    }
+  }, [viewerOpen, revokeActiveObjectUrl])
+
+  useEffect(() => () => {
+    if (activeObjectUrlRef.current) URL.revokeObjectURL(activeObjectUrlRef.current)
+  }, [])
 
   // Track the previous route :id to detect navigation away from /gallery/:id
   const prevIdRef = useRef(id)
@@ -327,6 +469,11 @@ function MediaViewer() {
       setDeleteError('')
 
       await deleteMedia(currentMedia._id)
+      if (userId) {
+        await removeCachedOriginal(userId, String(currentMedia._id)).catch((error) => {
+          console.warn('Could not remove deleted media from local cache:', error)
+        })
+      }
       removeViewerMedia(currentMedia._id)
 
       setDeleteConfirmOpen(false)
@@ -367,7 +514,11 @@ function MediaViewer() {
         {currentMedia?.contentType?.startsWith('image/') && (
           <div
             className="media-viewer__ambient"
-            style={{ backgroundImage: `url(${currentMedia.url})` }}
+            style={{
+              backgroundImage: `url(${
+                (activeOriginalMediaId === String(currentMedia._id) ? activeOriginalUrl : '') || currentMedia.thumbnailUrl || ''
+              })`,
+            }}
           />
         )}
 
@@ -396,6 +547,11 @@ function MediaViewer() {
         <div className="media-viewer__track" ref={trackRef}>
           {viewerMedia.map((media, index) => {
             const isCurrent = index === viewerIndex
+            const mediaId = String(media._id)
+            // Non-active slides use thumbnails only; the active slide uses its downloaded original.
+            const hasActiveOriginal = isCurrent && activeOriginalMediaId === mediaId
+            const resolvedUrl = hasActiveOriginal ? activeOriginalUrl : (media.thumbnailUrl || '')
+            const isLoadingOriginal = isCurrent && originalLoading
 
             return (
               <div className="media-viewer__slide" key={media._id}>
@@ -406,9 +562,9 @@ function MediaViewer() {
                     }`}
                   >
                     <img
-                      src={media.url}
+                      src={resolvedUrl}
                       alt={media.fileName}
-                      className="media-viewer__image"
+                      className={`media-viewer__image${isLoadingOriginal ? ' media-viewer__image--loading' : ''}`}
                       draggable={false}
                       style={
                         isCurrent
@@ -425,7 +581,43 @@ function MediaViewer() {
                       onPointerCancel={handlePointerUp}
                       onTouchStart={handleTouchStart}
                       onTouchMove={handleTouchMove}
+                      onLoad={() => {
+                        if (isCurrent && hasActiveOriginal) {
+                          setOriginalImageLoaded(true)
+                          setOriginalError('')
+                        }
+                      }}
                     />
+                    {/* Loading indicator shown on current slide while fetching original */}
+                    {isLoadingOriginal && (
+                      <div className="media-viewer__loading-badge">Loading original…</div>
+                    )}
+                    {isCurrent && originalError && (
+                      <div className="media-viewer__loading-badge" role="alert">
+                        {originalError}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOriginalError('')
+                            setOriginalLoading(true)
+                            setOriginalImageLoaded(false)
+                            getOrFetchOriginal(userId, mediaId, 'viewed')
+                              .then((blob) => {
+                                const objectUrl = URL.createObjectURL(blob)
+                                if (activeObjectUrlRef.current) URL.revokeObjectURL(activeObjectUrlRef.current)
+                                activeObjectUrlRef.current = objectUrl
+                                setActiveOriginalMediaId(mediaId)
+                                setActiveOriginalUrl(objectUrl)
+                              })
+                              .catch((error) => {
+                                console.error('Original retry failed:', error)
+                                setOriginalError('Could not load the original image. Please try again.')
+                              })
+                              .finally(() => setOriginalLoading(false))
+                          }}
+                        >Retry</button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="media-viewer__file glass">
@@ -437,6 +629,7 @@ function MediaViewer() {
             )
           })}
         </div>
+
 
         {/* Prev / next */}
         {zoom === MIN_ZOOM && (

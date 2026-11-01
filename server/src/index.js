@@ -26,6 +26,12 @@ app.use(
 app.use(express.json());
 app.get('/api/health', (_request, response) => response.json({ status: 'ok', service: 'dear-us-api' }));
 
+// CHECK WHICH ROUTE IS HIT BY USER
+app.use((request, _response, next) => {
+  console.log(`Incoming request: ${request.method} ${request.originalUrl}`);
+  next();
+});
+
 
 app.use('/api/auth', authRouter);
 app.use('/api/folders', folderRouter);

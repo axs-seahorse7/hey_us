@@ -108,3 +108,15 @@ export async function deleteMedia(mediaId) {
     throw error
   }
 }
+
+// Fetches a fresh signed URL for the full-resolution original of a media item.
+// Called on-demand by the viewer when a slide becomes active.
+export async function getOriginalUrl(mediaId) {
+  try {
+    const response = await api.get(`/media/${mediaId}/original-url`)
+    return response.data.url
+  } catch (error) {
+    console.error('getOriginalUrl error:', error)
+    throw error
+  }
+}
