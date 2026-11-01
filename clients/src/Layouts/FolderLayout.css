@@ -1,0 +1,305 @@
+/* ==================================================
+   Folders — iOS-style liquid glass
+   ================================================== */
+
+.folders-layout {
+  position: relative;
+  min-height: 100vh;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(96px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.folders-layout__bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  transform: translateZ(0);
+  will-change: transform;
+  background:
+    radial-gradient(60vmax 60vmax at 10% -10%, rgba(0, 122, 255, 0.28), transparent 60%),
+    radial-gradient(50vmax 50vmax at 100% 10%, rgba(175, 82, 222, 0.24), transparent 60%),
+    radial-gradient(60vmax 60vmax at 50% 110%, rgba(255, 149, 0, 0.2), transparent 60%),
+    #f2f2f7;
+}
+
+.folders-glass {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.42));
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 32px rgba(31, 38, 135, 0.12);
+  border-radius: 28px;
+}
+
+/* ---------- Create button ---------- */
+
+/* Desktop: pinned top-right, same edge as the grid */
+.folders-toolbar {
+  position: sticky;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  z-index: 50;
+  max-width: 1280px;
+  margin: 0 auto 16px;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.folders-toolbar__create.ant-btn {
+  pointer-events: auto;
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 6px 16px rgba(0, 122, 255, 0.3);
+}
+
+/* ---------- Content ---------- */
+
+.folders-content {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.folders-error.ant-alert {
+  max-width: 1280px;
+  margin: 0 auto 16px;
+  border-radius: 16px;
+}
+
+.folders-state {
+  min-height: 50vh;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.folders-state__icon {
+  font-size: 56px;
+  color: #ffb340;
+}
+
+.folders-skeleton.ant-skeleton .ant-skeleton-node,
+.folders-skeleton .ant-skeleton-node {
+  width: 100%;
+  height: 150px;
+  border-radius: 24px;
+}
+
+.folders-skeleton .ant-skeleton-node > span {
+  display: none;
+}
+
+/* ---------- Folder card ---------- */
+
+.folder-card.ant-card {
+  border-radius: 24px;
+  cursor: pointer;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.45));
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 8px 24px rgba(31, 38, 135, 0.12);
+  transition:
+    transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.25s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) {
+  .folder-card.ant-card:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 1),
+      0 18px 40px rgba(31, 38, 135, 0.2);
+  }
+}
+
+.folder-card.ant-card:active {
+  transform: scale(0.97);
+}
+
+.folder-card.ant-card:focus-visible {
+  outline: 3px solid rgba(0, 122, 255, 0.7);
+  outline-offset: 2px;
+}
+
+/* iOS app-icon tile */
+.folder-card__icon.ant-flex {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 17px;
+  font-size: 28px;
+  color: #fff;
+  background: linear-gradient(145deg, var(--from), var(--to));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.12),
+    0 8px 18px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+/* gloss highlight on the top half */
+.folder-card__icon.ant-flex::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 50% 0;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.folder-card__icon .anticon {
+  position: relative;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+.folder-card__name.ant-typography {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.folder-card__count.ant-typography {
+  font-size: 12px;
+}
+
+/* ---------- Create modal (antd) ---------- */
+
+.folders-modal .ant-modal-content {
+  background: rgba(255, 255, 255, 0.6);
+  -webkit-backdrop-filter: blur(34px) saturate(180%);
+  backdrop-filter: blur(34px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 26px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 24px 64px rgba(31, 38, 135, 0.25);
+  padding: 24px;
+}
+
+.folders-modal .ant-modal-header {
+  background: transparent;
+  text-align: center;
+}
+
+.folders-modal .ant-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  background: transparent;
+}
+
+.folders-modal .ant-input-affix-wrapper,
+.folders-modal .ant-input {
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.folders-modal .ant-modal-footer {
+  display: flex;
+  gap: 10px;
+}
+
+.folders-modal .ant-modal-footer .ant-btn {
+  flex: 1;
+  height: 42px;
+  margin: 0;
+  border-radius: 14px;
+}
+
+.folders-modal .ant-modal-footer .ant-btn-default {
+  background: rgba(120, 120, 128, 0.12);
+  border-color: transparent;
+}
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 640px) {
+  .folders-layout {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  /* Floating, fully round, bottom-right (80px up, like the gallery button) */
+  .folders-toolbar {
+    position: fixed;
+    top: auto;
+    left: auto;
+    right: 16px;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    margin: 0;
+    max-width: none;
+    z-index: 800;
+  }
+
+  .folders-toolbar__create.ant-btn {
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 22px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 10px 28px rgba(0, 122, 255, 0.45);
+  }
+
+  .folders-toolbar__label {
+    display: none;
+  }
+
+  /* lighter paint cost while scrolling */
+  .folder-card.ant-card {
+    border-radius: 20px;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 2px 8px rgba(31, 38, 135, 0.1);
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folder-card.ant-card {
+    transition: none;
+  }
+}
+
+/* ---------- Dark mode ---------- */
+
+@media (prefers-color-scheme: dark) {
+  .folders-layout__bg {
+    background:
+      radial-gradient(60vmax 60vmax at 10% -10%, rgba(10, 132, 255, 0.3), transparent 60%),
+      radial-gradient(50vmax 50vmax at 100% 10%, rgba(191, 90, 242, 0.26), transparent 60%),
+      radial-gradient(60vmax 60vmax at 50% 110%, rgba(255, 159, 10, 0.16), transparent 60%),
+      #000;
+  }
+
+  .folders-glass,
+  .folder-card.ant-card {
+    background: linear-gradient(135deg, rgba(60, 60, 67, 0.6), rgba(44, 44, 48, 0.4));
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 8px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  .folders-modal .ant-modal-content {
+    background: rgba(30, 30, 36, 0.6);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .folders-modal .ant-input-affix-wrapper,
+  .folders-modal .ant-input {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .folders-glass,
+  .folder-card.ant-card,
+  .folders-modal .ant-modal-content {
+    background: rgba(255, 255, 255, 0.95);
+  }
+}

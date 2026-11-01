@@ -1,0 +1,212 @@
+/* ==================================================
+   Folder view — iOS-style liquid glass
+   ================================================== */
+
+.folderview {
+  position: relative;
+  min-height: 100vh;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(96px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.folderview__bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  transform: translateZ(0);
+  will-change: transform;
+  background:
+    radial-gradient(60vmax 60vmax at 10% -10%, rgba(0, 122, 255, 0.28), transparent 60%),
+    radial-gradient(50vmax 50vmax at 100% 10%, rgba(175, 82, 222, 0.24), transparent 60%),
+    radial-gradient(60vmax 60vmax at 50% 110%, rgba(255, 149, 0, 0.2), transparent 60%),
+    #f2f2f7;
+}
+
+.folderview-glass {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.42));
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 32px rgba(31, 38, 135, 0.12);
+  border-radius: 28px;
+}
+
+/* ---------- Upload button ---------- */
+
+/* Desktop: pinned top-right, on the same row as the back button + title */
+.folderview-toolbar {
+  position: sticky;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  z-index: 50;
+  max-width: 1280px;
+  height: 40px;
+  margin: 0 auto -40px; /* pulls the header up onto the same row */
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.folderview-toolbar__upload.ant-btn {
+  pointer-events: auto;
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 6px 16px rgba(0, 122, 255, 0.3);
+}
+
+/* ---------- Header (back + title, no box) ---------- */
+
+.folderview-header {
+  max-width: 1280px;
+  min-height: 48px;
+  margin: 0 auto 20px;
+  padding-right: 140px; /* keep the title clear of the Upload button */
+}
+
+.folderview-back.ant-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.45));
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 4px 14px rgba(31, 38, 135, 0.12);
+}
+
+.folderview-back.ant-btn:active {
+  transform: scale(0.94);
+}
+
+.folderview-header__text {
+  min-width: 0;
+}
+
+.folderview-header__title.ant-typography {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.folderview-header__count.ant-typography {
+  font-size: 13px;
+}
+
+/* ---------- Content ---------- */
+
+.folderview-content {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.folderview-state {
+  min-height: 50vh;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.folderview-state__icon {
+  font-size: 56px;
+  color: #ffb340;
+}
+
+/* ---------- Loading skeleton ---------- */
+
+.folderview-skeleton {
+  width: 100%;
+}
+
+.folderview-skeleton__tile.ant-skeleton {
+  width: calc(50% - 4px);
+}
+
+@media (min-width: 641px) {
+  .folderview-skeleton__tile.ant-skeleton {
+    width: calc(20% - 7px);
+  }
+}
+
+.folderview-skeleton .ant-skeleton-node {
+  width: 100%;
+  height: 180px;
+  border-radius: 20px;
+}
+
+.folderview-skeleton .ant-skeleton-node > span {
+  display: none;
+}
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 640px) {
+  .folderview {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .folderview-header {
+    padding-right: 0;
+    margin-bottom: 16px;
+  }
+
+  /* Floating, fully round, bottom-right (80px up, like the gallery button) */
+  .folderview-toolbar {
+    position: fixed;
+    top: auto;
+    left: auto;
+    right: 16px;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    height: auto;
+    margin: 0;
+    max-width: none;
+    z-index: 800;
+  }
+
+  .folderview-toolbar__upload.ant-btn {
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 22px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 10px 28px rgba(0, 122, 255, 0.45);
+  }
+
+  .folderview-toolbar__label {
+    display: none;
+  }
+}
+
+/* ---------- Dark mode ---------- */
+
+@media (prefers-color-scheme: dark) {
+  .folderview__bg {
+    background:
+      radial-gradient(60vmax 60vmax at 10% -10%, rgba(10, 132, 255, 0.3), transparent 60%),
+      radial-gradient(50vmax 50vmax at 100% 10%, rgba(191, 90, 242, 0.26), transparent 60%),
+      radial-gradient(60vmax 60vmax at 50% 110%, rgba(255, 159, 10, 0.16), transparent 60%),
+      #000;
+  }
+
+  .folderview-glass,
+  .folderview-back.ant-btn {
+    background: linear-gradient(135deg, rgba(60, 60, 67, 0.6), rgba(44, 44, 48, 0.4));
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 8px 32px rgba(0, 0, 0, 0.45);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .folderview-glass,
+  .folderview-back.ant-btn {
+    background: rgba(255, 255, 255, 0.95);
+  }
+}

@@ -1,0 +1,168 @@
+/* ==================================================
+   Gallery — iOS-style liquid glass
+   ================================================== */
+
+.gallery-layout {
+  position: relative;
+  min-height: 100vh;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(96px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+/* Soft colour blobs so the glass has something to refract */
+.gallery-layout__bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  /* own compositor layer so the gradients aren't repainted while scrolling */
+  transform: translateZ(0);
+  will-change: transform;
+  background:
+    radial-gradient(60vmax 60vmax at 10% -10%, rgba(0, 122, 255, 0.28), transparent 60%),
+    radial-gradient(50vmax 50vmax at 100% 10%, rgba(175, 82, 222, 0.24), transparent 60%),
+    radial-gradient(60vmax 60vmax at 50% 110%, rgba(255, 149, 0, 0.2), transparent 60%),
+    #f2f2f7;
+}
+
+/* ---------- Glass primitive ---------- */
+
+.glass-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.42));
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 32px rgba(31, 38, 135, 0.12);
+  border-radius: 28px;
+}
+
+/* ---------- Toolbar (just the Upload button, top-right) ---------- */
+
+/* Desktop: pinned to the top-right of the content area, same edge as the grid */
+.gallery-toolbar {
+  position: sticky;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  z-index: 50;
+  max-width: 1280px;
+  margin: 0 auto 16px;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none; /* only the button itself is clickable */
+}
+
+.gallery-toolbar__upload.ant-btn {
+  pointer-events: auto;
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 6px 16px rgba(0, 122, 255, 0.3);
+}
+
+/* ---------- Content ---------- */
+
+.gallery-content {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.gallery-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.gallery-state__icon {
+  font-size: 56px;
+  color: rgba(60, 60, 67, 0.4);
+}
+
+/* ---------- Loading skeleton ---------- */
+
+.gallery-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+}
+
+.gallery-skeleton .gallery-skeleton__tile.ant-skeleton,
+.gallery-skeleton .gallery-skeleton__tile .ant-skeleton-node {
+  width: 100%;
+}
+
+.gallery-skeleton .ant-skeleton-node {
+  aspect-ratio: 1;
+  height: auto;
+  width: 100%;
+  border-radius: 16px;
+}
+
+.gallery-skeleton .ant-skeleton-node > span {
+  display: none;
+}
+
+/* ---------- Small screens ---------- */
+
+@media (max-width: 640px) {
+  .gallery-layout {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  /* Mobile: floating round button, bottom-right, 80px up from the bottom */
+  .gallery-toolbar {
+    position: fixed;
+    top: auto;
+    right: 16px;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    left: auto;
+    margin: 0;
+    max-width: none;
+    z-index: 800;
+  }
+
+  .gallery-toolbar__upload.ant-btn {
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 22px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 10px 28px rgba(0, 122, 255, 0.45);
+  }
+
+  .gallery-toolbar__label {
+    display: none;
+  }
+}
+
+/* ---------- Dark mode ---------- */
+
+@media (prefers-color-scheme: dark) {
+  .gallery-layout__bg {
+    background:
+      radial-gradient(60vmax 60vmax at 10% -10%, rgba(10, 132, 255, 0.3), transparent 60%),
+      radial-gradient(50vmax 50vmax at 100% 10%, rgba(191, 90, 242, 0.26), transparent 60%),
+      radial-gradient(60vmax 60vmax at 50% 110%, rgba(255, 159, 10, 0.16), transparent 60%),
+      #000;
+  }
+
+  .glass-card {
+    background: linear-gradient(135deg, rgba(60, 60, 67, 0.55), rgba(44, 44, 48, 0.35));
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      0 8px 32px rgba(0, 0, 0, 0.45);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.95);
+  }
+}
