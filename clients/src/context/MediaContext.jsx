@@ -20,6 +20,24 @@ export function MediaProvider({ children }) {
     setViewerOpen(false)
   }, [])
 
+  const syncMediaItems = useCallback((updatedItems = []) => {
+    if (!updatedItems.length) return;
+
+    const updatesById = new Map(
+      updatedItems.map((item) => [String(item._id), item])
+    );
+
+    const mergeUpdates = (currentItems) =>
+      currentItems.map((item) => {
+        const updated = updatesById.get(String(item._id));
+
+        return updated ? { ...item, ...updated } : item;
+      });
+
+    setGalleryImages(mergeUpdates);
+    setViewerMedia(mergeUpdates);
+  }, []);
+
   const nextMedia = useCallback(() => {
     setViewerIndex((currentIndex) => {
       if (currentIndex >= viewerMedia.length - 1) return currentIndex
@@ -36,43 +54,49 @@ export function MediaProvider({ children }) {
 
   // Remove media from the currently opened viewer
   const removeViewerMedia = useCallback((mediaId) => {
+    const id = String(mediaId);
+
+    // Remove from the gallery grid data.
+    setGalleryImages((currentMedia) =>
+      currentMedia.filter(
+        (item) => String(item._id) !== id
+      )
+    );
+
+    // Remove from the currently opened viewer.
     setViewerMedia((currentMedia) => {
       const deletedIndex = currentMedia.findIndex(
-        (item) => item._id === mediaId,
-      )
+        (item) => String(item._id) === id
+      );
 
-      if (deletedIndex === -1) {
-        return currentMedia
-      }
+      if (deletedIndex === -1) return currentMedia;
 
       const updatedMedia = currentMedia.filter(
-        (item) => item._id !== mediaId,
-      )
+        (item) => String(item._id) !== id
+      );
 
       setViewerIndex((currentIndex) => {
         if (updatedMedia.length === 0) {
-          setViewerOpen(false)
-          return 0
+          setViewerOpen(false);
+          return 0;
         }
 
-        // If deleted image was before the current image,
-        // move the index back by one.
         if (deletedIndex < currentIndex) {
-          return currentIndex - 1
+          return currentIndex - 1;
         }
 
-        // If the deleted image was the last image,
-        // move to the new last image.
         if (currentIndex >= updatedMedia.length) {
-          return updatedMedia.length - 1
+          return updatedMedia.length - 1;
         }
 
-        return currentIndex
-      })
+        return currentIndex;
+      });
 
-      return updatedMedia
-    })
-  }, [])
+      return updatedMedia;
+    });
+  }, []);
+
+ 
 
   const currentMedia = viewerMedia[viewerIndex] ?? null
 
@@ -85,6 +109,7 @@ export function MediaProvider({ children }) {
         currentMedia,
         openViewer,
         closeViewer,
+        syncMediaItems,
         nextMedia,
         previousMedia,
         removeViewerMedia,

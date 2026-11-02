@@ -7,6 +7,7 @@ import {
   getMedia,
   getFolderMedia,
   getOriginalUrl,
+  getThumbnailUrl,
   deleteMedia,
 } from '../controllers/media.controller.js';
 
@@ -19,6 +20,8 @@ router.get('/folders/:folderId', authenticate, listFolderMedia);
 
 // Must come before /:mediaId to avoid being shadowed
 router.get('/:mediaId/original-url', authenticate, getOriginalUrl);
+router.get('/:mediaId/thumbnail-url', authenticate, getThumbnailUrl);
+
 router.get('/:mediaId', authenticate, getMedia);
 router.delete('/:mediaId', authenticate, deleteMedia);
 

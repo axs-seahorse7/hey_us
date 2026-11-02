@@ -64,10 +64,10 @@ export const getMedia = async (req, res) => {
   try {
     const { mediaId } = req.params;
 
-    const media = await Media.findOne({
+   const media = await Media.findOne({
       _id: mediaId,
       owner: req.user.id,
-      status: 'completed',
+      status: 'uploaded',
     });
 
     if (!media) {
@@ -118,7 +118,7 @@ export async function createUploadUrl(request, response, next) {
     }
 
     if (isBlockedFile(fileName)) {
-      return res.status(400).json({
+      return response.status(400).json({
         message: 'This file type is not allowed.',
       });
     }
@@ -195,8 +195,6 @@ export async function createUploadUrl(request, response, next) {
     return next(error);
   }
 }
-
-
 
 
 export async function completeUpload(request, response, next) {
@@ -289,9 +287,6 @@ export async function completeUpload(request, response, next) {
     return next(error);
   }
 }
-
-
-
 
 
 export const getFolderMedia = async (req, res) => {
@@ -406,6 +401,54 @@ export const getOriginalUrl = async (req, res) => {
   }
 };
 
+// Returns a fresh signed URL for a media thumbnail.
+export const getThumbnailUrl = async (req, res) => {
+  try {
+    const { mediaId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(mediaId)) {
+      return res.status(400).json({
+        message: 'Invalid media id.',
+      });
+    }
+
+    const media = await Media.findOne({
+      _id: mediaId,
+      owner: req.user.id,
+      status: 'uploaded',
+    }).select('thumbnailObjectKey');
+
+    if (!media) {
+      return res.status(404).json({
+        message: 'Media not found.',
+      });
+    }
+
+    if (!media.thumbnailObjectKey) {
+      return res.status(404).json({
+        message: 'Thumbnail is not available yet.',
+      });
+    }
+
+    const url = await getSignedUrl(
+      s3,
+      new GetObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET,
+        Key: media.thumbnailObjectKey,
+      }),
+      { expiresIn: 60 * 10 },
+    );
+
+    return res.json({ url });
+  } catch (error) {
+    console.error('getThumbnailUrl error:', error);
+
+    return res.status(500).json({
+      message: 'Failed to generate thumbnail URL.',
+    });
+  }
+};
+
 export async function deleteMedia(request, response, next) {
   try {
     const { mediaId } = request.params;
@@ -428,24 +471,41 @@ export async function deleteMedia(request, response, next) {
       });
     }
 
-    const command = new DeleteObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET,
-      Key: media.objectKey,
-    });
+    const bucket = process.env.AWS_S3_BUCKET;
 
-    await s3.send(command);
+    if (!bucket) {
+      throw new Error('AWS_S3_BUCKET is not configured.');
+    }
 
+    // Delete original and generated thumbnail from S3.
+    const objectsToDelete = [
+      media.objectKey,
+      media.thumbnailObjectKey,
+    ].filter(Boolean);
+
+    await Promise.all(
+      objectsToDelete.map((key) =>
+        s3.send(
+          new DeleteObjectCommand({
+            Bucket: bucket,
+            Key: key,
+          })
+        )
+      )
+    );
+
+    // Remove MongoDB metadata only after S3 deletion succeeds.
     await Media.deleteOne({
       _id: media._id,
       owner: request.user.id,
     });
 
     return response.json({
-      message: 'Media deleted successfully.',
+      message: 'Media and generated assets deleted successfully.',
       mediaId: media._id,
     });
   } catch (error) {
-    console.error('deleteMedia error:', error);
+    console.error('Delete media error:', error);
     return next(error);
   }
-}
+};

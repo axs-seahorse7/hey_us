@@ -1,10 +1,15 @@
 
+
 const BLOCKED_EXTENSIONS = new Set([
+  // Common script and programming language extensions
   '.js', '.jsx', '.mjs', '.cjs',
   '.ts', '.tsx',
   '.html', '.htm', '.xhtml', '.svg',
   '.py', '.pyw', '.php', '.phtml',
   '.rb', '.pl', '.cgi', '.lua',
+  '.r', '.ipynb',
+
+  // Shell and batch script extensions
   '.sh', '.bash', '.zsh', '.fish',
   '.bat', '.cmd',
   '.ps1', '.psm1', '.psd1',

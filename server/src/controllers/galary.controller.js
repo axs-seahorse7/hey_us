@@ -2,6 +2,7 @@
 import mongoose from 'mongoose';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { isBlockedFile } from '../utils/fileValidation.js';
 
 import { s3 } from '../config/s3.js';
 import { Media } from '../models/Media.js';
@@ -92,6 +93,12 @@ export const getAllMedia = async (req, res) => {
 export const createUploadUrl = async (req, res, next) => {
   try {
     const { fileName, contentType, size, folderId } = req.body;
+
+    if (isBlockedFile(fileName)) {
+      return res.status(400).json({
+        message: 'This file type is not allowed.',
+      });
+    }
 
     // Validate common upload fields
     if (

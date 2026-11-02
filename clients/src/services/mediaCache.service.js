@@ -1,5 +1,5 @@
 
-import { getOriginalUrl } from './media.service';
+import { getOriginalUrl, getThumbnailUrl } from './media.service';
 
 const DB_NAME = 'dear-us-media-cache';
 const DB_VERSION = 4;
@@ -531,11 +531,22 @@ export async function getOrFetchThumbnail(
       throw new Error('Thumbnail URL is unavailable.');
     }
 
-    const response = await fetch(thumbnailUrl);
+    let response = await fetch(thumbnailUrl);
+
+    // If the signed URL has expired, obtain a fresh one.
+    if (response.status === 403) {
+      console.log('[THUMBNAIL URL EXPIRED] Refreshing URL:', mediaId);
+
+      const freshUrl = await getThumbnailUrl(mediaId);
+
+      response = await fetch(freshUrl);
+    }
 
     if (!response.ok) {
+      const errorBody = await response.text();
+
       throw new Error(
-        `Thumbnail download failed: ${response.status}`,
+        `Thumbnail download failed: ${response.status} - ${errorBody}`,
       );
     }
 

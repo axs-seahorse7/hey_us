@@ -1,65 +1,47 @@
 import api from './api.js';
 import {isBlockedFile} from '../utils/fileValidation.js';
 
-export async function createUploadUrl({
-  fileName,
-  contentType,
-  size,
-  folderId,
-}) {
+export async function createUploadUrl({ fileName, contentType, size, folderId}) {
   try {
-    
     if (isBlockedFile(fileName)) {
       throw new Error('This file type is not allowed.');
     }
 
-    const response = await api.post(
-      '/media/upload-url',
-      {
-        fileName,
-        contentType,
-        size,
-        folderId,
-      },
-    );
+    const response = await api.post('/media/upload-url', {
+      fileName,
+      contentType: contentType || 'application/octet-stream',
+      size,
+      folderId,
+    });
 
     return response.data;
   } catch (error) {
-    console.error(
-      'createUploadUrl error:',
-      error,
-    );
-
+    console.error('createUploadUrl error:', error);
     throw error;
   }
 }
 
 export async function uploadFileToS3(uploadUrl, file) {
   try {
-    const response = await fetch(
-      uploadUrl,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': file.type,
-        },
-        body: file,
+    const contentType = file.type || 'application/octet-stream';
+
+    const response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType,
       },
-    );
+      body: file,
+    });
 
     if (!response.ok) {
       throw new Error(
-        `S3 upload failed with status ${response.status}.`,
+        `S3 upload failed with status ${response.status}.`
       );
     }
 
     return true;
   } catch (error) {
-    console.error(
-      'uploadFileToS3 error:',
-      error,
-    );
-
+    console.error('uploadFileToS3 error:', error);
     throw new Error(`S3 Upload failed: ${error.message}`);
   }
 }
@@ -124,5 +106,19 @@ export async function getOriginalUrl(mediaId) {
   } catch (error) {
     console.error('getOriginalUrl error:', error)
     throw error
+  }
+}
+
+// Fetches a fresh signed URL for a media thumbnail.
+export async function getThumbnailUrl(mediaId) {
+  try {
+    const response = await api.get(
+      `/media/${mediaId}/thumbnail-url`
+    );
+
+    return response.data.url;
+  } catch (error) {
+    console.error('getThumbnailUrl error:', error);
+    throw error;
   }
 }
