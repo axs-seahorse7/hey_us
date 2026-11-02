@@ -1,4 +1,5 @@
 import api from './api.js';
+import {isBlockedFile} from '../utils/fileValidation.js';
 
 export async function createUploadUrl({
   fileName,
@@ -7,6 +8,11 @@ export async function createUploadUrl({
   folderId,
 }) {
   try {
+    
+    if (isBlockedFile(fileName)) {
+      throw new Error('This file type is not allowed.');
+    }
+
     const response = await api.post(
       '/media/upload-url',
       {

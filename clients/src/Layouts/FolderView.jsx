@@ -26,6 +26,26 @@ import {
 import MediaGrid from '../components/Grids/MediaGrid'
 import './FolderView.css'
 
+
+const RAW_EXTENSIONS = new Set([
+  '.arw', '.cr2', '.cr3', '.nef',
+  '.dng', '.raf', '.orf', '.rw2', '.pef',
+]);
+
+function requiresThumbnail(media) {
+  const extension = media.fileName
+    ?.match(/\.[^.]+$/)?.[0]
+    ?.toLowerCase();
+
+  return (
+    media.contentType?.startsWith('image/') ||
+    RAW_EXTENSIONS.has(extension)
+  );
+}
+
+const sleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 // Local-time YYYY-MM-DD (toISOString() would shift dates to UTC)
 function toLocalDateKey(value) {
   const date = value ? new Date(value) : new Date()
@@ -79,12 +99,61 @@ function FolderView() {
   const [uploadingCount, setUploadingCount] = useState(0)
 
   const pendingUploads = useRef(0)
+  const pendingThumbnailIds = useRef(new Set());
 
   const fetchMedia = useCallback(async () => {
     const data = await getFolderMedia(folderId)
     setFolder(data.folder)
     setMedia(data.media ?? [])
   }, [folderId])
+
+  const refreshPendingThumbnails = useCallback(
+    async (mediaIds) => {
+      const pendingIds = new Set(mediaIds);
+
+      const maxAttempts = 30;
+      const interval = 2000;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        await sleep(interval);
+
+        try {
+          const data = await getFolderMedia(folderId);
+          const updatedMedia = data.media ?? [];
+
+          setFolder(data.folder);
+          setMedia(updatedMedia);
+
+          for (const id of pendingIds) {
+            const item = updatedMedia.find(
+              (mediaItem) => String(mediaItem._id) === String(id)
+            );
+
+            if (
+              item &&
+              (!requiresThumbnail(item) || item.thumbnailObjectKey)
+            ) {
+              pendingIds.delete(id);
+            }
+          }
+
+          console.log(
+            `[FOLDER THUMBNAIL STATUS] ${pendingIds.size} remaining`
+          );
+
+          if (pendingIds.size === 0) {
+            console.log('[FOLDER THUMBNAILS READY]');
+            return;
+          }
+        } catch (error) {
+          console.warn('[FOLDER THUMBNAIL REFRESH FAILED]', error);
+        }
+      }
+
+      console.warn('[FOLDER THUMBNAIL TIMEOUT]', [...pendingIds]);
+    },
+    [folderId]
+  );
 
   const loadMedia = useCallback(async () => {
     try {
@@ -105,7 +174,7 @@ function FolderView() {
 
   // Upload steps: 1) get a signed URL  2) send the file to S3  3) tell the server it's done
   async function uploadOne(file) {
-    let uploadData
+    let uploadData;
 
     try {
       uploadData = await createUploadUrl({
@@ -113,50 +182,63 @@ function FolderView() {
         contentType: file.type,
         size: file.size,
         folderId,
-      })
+      });
     } catch (e) {
-      throw new Error(`Failed to initialize upload: ${e.message}`)
+      throw new Error(`Failed to initialize upload: ${e.message}`);
     }
 
     try {
-      await uploadFileToS3(uploadData.uploadUrl, file)
+      await uploadFileToS3(uploadData.uploadUrl, file);
     } catch (e) {
-      throw new Error(`S3 transfer failed: ${e.message}`)
+      throw new Error(`S3 transfer failed: ${e.message}`);
     }
 
     try {
-      await completeUpload(uploadData.mediaId)
+      await completeUpload(uploadData.mediaId);
     } catch (e) {
-      throw new Error(`Failed to finalize upload: ${e.message}`)
+      throw new Error(`Failed to finalize upload: ${e.message}`);
     }
+
+    return uploadData.mediaId;
   }
 
   // Runs once per selected file; refreshes the folder after the last one finishes
   async function handleUpload(file) {
-    pendingUploads.current += 1
-    setUploadingCount(pendingUploads.current)
+    pendingUploads.current += 1;
+    setUploadingCount(pendingUploads.current);
 
     try {
-      await uploadOne(file)
+      const mediaId = await uploadOne(file);
+
+      if (mediaId) {
+        pendingThumbnailIds.current.add(String(mediaId));
+      }
     } catch (err) {
-      console.error('Upload failed:', err)
-      messageApi.error(err.message || `Failed to upload ${file.name}.`)
+      console.error('Upload failed:', err);
+      messageApi.error(err.message || `Failed to upload ${file.name}.`);
     } finally {
-      pendingUploads.current -= 1
-      setUploadingCount(pendingUploads.current)
+      pendingUploads.current -= 1;
+      setUploadingCount(pendingUploads.current);
 
       if (pendingUploads.current === 0) {
         try {
-          await fetchMedia()
-          messageApi.success('Folder updated')
+          const uploadedIds = [...pendingThumbnailIds.current];
+          pendingThumbnailIds.current.clear();
+
+          await fetchMedia();
+
+          messageApi.success('Upload completed');
+
+          // Run independently; don't keep the upload spinner active.
+          refreshPendingThumbnails(uploadedIds);
         } catch (err) {
-          console.error('Refresh failed:', err)
-          messageApi.error('Uploaded, but could not refresh the folder.')
+          console.error('Refresh failed:', err);
+          messageApi.error('Uploaded, but could not refresh the folder.');
         }
       }
     }
 
-    return Upload.LIST_IGNORE // never add to antd's internal list
+    return Upload.LIST_IGNORE;
   }
 
   const groupedMedia = useMemo(() => groupImagesByDate(media), [media])
@@ -243,7 +325,7 @@ function FolderView() {
         {/* top-right on desktop, floating round button bottom-right on mobile */}
         <Flex className="folderview-toolbar">
           <Upload
-            accept="image/*"
+            accept="*/*"
             multiple
             showUploadList={false}
             disabled={uploading || loading}

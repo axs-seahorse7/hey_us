@@ -2,7 +2,16 @@ import api from './api.js';
 import { completeUpload } from './media.service.js';
 
 export const uploadFile = async (file, folderId) => {
-  // 1. Ask our backend for a presigned URL
+  const start = performance.now();
+
+  const logTime = (step) => {
+    console.log(
+      `[UPLOAD TIMING] ${step}: ${(
+        performance.now() - start
+      ).toFixed(0)} ms`
+    );
+  };
+
   const response = await api.post('/gallery/upload-url', {
     fileName: file.name,
     contentType: file.type,
@@ -10,14 +19,13 @@ export const uploadFile = async (file, folderId) => {
     folderId,
   });
 
+  logTime('Upload URL generated');
+
   const { uploadUrl, mediaId } = response.data;
 
-  // 2. Upload the actual file directly to S3
   const uploadResponse = await fetch(uploadUrl, {
     method: 'PUT',
-    headers: {
-      'Content-Type': file.type,
-    },
+    headers: { 'Content-Type': file.type },
     body: file,
   });
 
@@ -25,10 +33,11 @@ export const uploadFile = async (file, folderId) => {
     throw new Error('Failed to upload file to S3');
   }
 
-  // 3. Mark as complete in the database
+  logTime('Original uploaded to S3');
+
   await completeUpload(mediaId);
 
-  return {
-    mediaId,
-  };
+  logTime('Complete API finished');
+
+  return { mediaId };
 };

@@ -2,7 +2,7 @@
 import { getOriginalUrl } from './media.service';
 
 const DB_NAME = 'dear-us-media-cache';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 const STORE_NAME = 'originals';
 const THUMBNAIL_STORE_NAME = 'thumbnails';

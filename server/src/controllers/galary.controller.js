@@ -14,7 +14,9 @@ const URL_EXPIRY = 60 * 10;
 export const getAllMedia = async (req, res) => {
   try {
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-    const requestedLimit = Number.parseInt(req.query.limit, 10) || DEFAULT_LIMIT;
+    const requestedLimit =
+      Number.parseInt(req.query.limit, 10) || DEFAULT_LIMIT;
+
     const limit = Math.min(Math.max(1, requestedLimit), MAX_LIMIT);
     const skip = (page - 1) * limit;
 
@@ -39,14 +41,18 @@ export const getAllMedia = async (req, res) => {
 
     const mediaWithUrls = await Promise.all(
       media.map(async (item) => {
-        const thumbnailCommand = new GetObjectCommand({
-          Bucket: process.env.AWS_S3_BUCKET,
-          Key: item.thumbnailObjectKey || item.objectKey,
-        });
+        let thumbnailUrl = null;
 
-        const thumbnailUrl = await getSignedUrl(s3, thumbnailCommand, {
-          expiresIn: URL_EXPIRY,
-        });
+        if (item.thumbnailObjectKey) {
+          thumbnailUrl = await getSignedUrl(
+            s3,
+            new GetObjectCommand({
+              Bucket: process.env.AWS_S3_BUCKET,
+              Key: item.thumbnailObjectKey,
+            }),
+            { expiresIn: URL_EXPIRY }
+          );
+        }
 
         return {
           _id: item._id,
@@ -55,13 +61,8 @@ export const getAllMedia = async (req, res) => {
           size: item.size,
           objectKey: item.objectKey,
           thumbnailObjectKey: item.thumbnailObjectKey || null,
-
-          // Small image for gallery cards
           thumbnailUrl,
-
-          // Original URL is fetched on-demand when user opens the viewer
           url: null,
-
           width: item.width,
           height: item.height,
           createdAt: item.createdAt,

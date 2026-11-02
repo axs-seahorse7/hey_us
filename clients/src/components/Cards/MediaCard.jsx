@@ -6,11 +6,25 @@ import { useAuth } from '../../Authentication/Context/AuthContext'
 import { getOrFetchThumbnail } from '../../services/mediaCache.service'
 import './MediaCard.css'
 
+
+const RAW_EXTENSIONS = new Set([
+  '.arw', '.cr2', '.cr3', '.nef',
+  '.dng', '.raf', '.orf', '.rw2', '.pef',
+]);
+
+function isRawMedia(media) {
+  const extension = media?.fileName
+    ?.match(/\.[^.]+$/)?.[0]
+    ?.toLowerCase();
+
+  return RAW_EXTENSIONS.has(extension);
+}
+
 function MediaCard({ media, onClick }) {
   const { user } = useAuth()
   const userId = user?.user?._id
 
-  const isImage = media.contentType?.startsWith('image/')
+  const isImage = media.contentType?.startsWith('image/') || isRawMedia(media);
 
   const [thumbnailSrc, setThumbnailSrc] = useState(null)
 
@@ -46,6 +60,11 @@ function MediaCard({ media, onClick }) {
       }
     }
 
+    if (!media.thumbnailUrl) {
+      setThumbnailSrc(null);
+      return;
+    }
+    
     loadThumbnail()
 
     return () => {

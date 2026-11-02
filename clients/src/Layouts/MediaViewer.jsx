@@ -20,6 +20,19 @@ const MIN_ZOOM = 1
 const MAX_ZOOM = 4
 const ZOOM_STEP = 0.5
 
+const RAW_EXTENSIONS = [
+  '.arw', '.cr2', '.cr3', '.nef',
+  '.dng', '.raf', '.orf', '.rw2', '.pef',
+];
+
+function isRawMedia(media) {
+  const extension = media?.fileName
+    ?.slice(media.fileName.lastIndexOf('.'))
+    .toLowerCase();
+
+  return RAW_EXTENSIONS.includes(extension);
+}
+
 function MediaViewer() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -79,7 +92,7 @@ function MediaViewer() {
       !viewerOpen ||
       !currentMedia ||
       !userId ||
-      !currentMedia.contentType?.startsWith('image/')
+      (!currentMedia.contentType?.startsWith('image/') || isRawMedia(currentMedia))
     ) {
       revokeActiveObjectUrl()
       setOriginalLoading(false)
@@ -555,7 +568,7 @@ function MediaViewer() {
 
             return (
               <div className="media-viewer__slide" key={media._id}>
-                {media.contentType?.startsWith('image/') ? (
+                {media.contentType?.startsWith('image/') || isRawMedia(media) ? (
                   <div
                     className={`media-viewer__image-container${
                       isCurrent && zoom > 1 ? ' media-viewer__image-container--zoomed' : ''

@@ -7,8 +7,9 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 
-import { generateThumbnail } from '../utils/mediaThumbnail.js';
+import { generateThumbnail, isImageMedia } from '../utils/mediaThumbnail.js';
 import {getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { isBlockedFile } from '../utils/fileValidation.js';
 
 import { s3 } from '../config/s3.js';
 import { Media } from '../models/Media.js';
@@ -116,6 +117,12 @@ export async function createUploadUrl(request, response, next) {
       });
     }
 
+    if (isBlockedFile(fileName)) {
+      return res.status(400).json({
+        message: 'This file type is not allowed.',
+      });
+    }
+
     if (!mongoose.Types.ObjectId.isValid(folderId)) {
       return response.status(400).json({
         message: 'Invalid folder id.',
@@ -190,6 +197,8 @@ export async function createUploadUrl(request, response, next) {
 }
 
 
+
+
 export async function completeUpload(request, response, next) {
   try {
     const { mediaId } = request.params;
@@ -211,61 +220,77 @@ export async function completeUpload(request, response, next) {
       });
     }
 
-    // Make completion idempotent.
-    if (media.status === 'uploaded') {
-      return response.json({
-        media: media.toJSON(),
-      });
-    }
+    // Verify original only on first completion.
+    if (media.status !== 'uploaded') {
+      const head = await s3.send(
+        new HeadObjectCommand({
+          Bucket: process.env.AWS_S3_BUCKET,
+          Key: media.objectKey,
+        }),
+      );
 
-    // Verify that the original object really exists in S3.
-    const head = await s3.send(
-      new HeadObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET,
-        Key: media.objectKey,
-      }),
-    );
-
-    if (head.ContentLength !== media.size) {
-      return response.status(400).json({
-        message: 'Uploaded file size does not match.',
-      });
-    }
-
-    if (
-      head.ContentType &&
-      head.ContentType !== media.contentType
-    ) {
-      return response.status(400).json({
-        message: 'Uploaded file type does not match.',
-      });
-    }
-
-    // Generate a thumbnail for supported raster images.
-    if (media.contentType.startsWith('image/')) {
-      const thumbnail = await generateThumbnail(media);
-
-      if (thumbnail) {
-        media.thumbnailObjectKey = thumbnail.thumbnailObjectKey;
-        media.thumbnailContentType = thumbnail.thumbnailContentType;
-        media.thumbnailSize = thumbnail.thumbnailSize;
-        media.width = thumbnail.width;
-        media.height = thumbnail.height;
+      if (head.ContentLength !== media.size) {
+        return response.status(400).json({
+          message: 'Uploaded file size does not match.',
+        });
       }
+
+      if (head.ContentType && head.ContentType !== media.contentType) {
+        return response.status(400).json({
+          message: 'Uploaded file type does not match.',
+        });
+      }
+
+      media.status = 'uploaded';
+      await media.save();
     }
 
-    media.status = 'uploaded';
-
-    await media.save();
-
-    return response.json({
+    // Return immediately. Thumbnail generation runs separately.
+    response.json({
       media: media.toJSON(),
     });
+
+    if (isImageMedia(media) && !media.thumbnailObjectKey) {
+      setImmediate(async () => {
+        try {
+          const thumbnail = await generateThumbnail(media);
+
+          if (!thumbnail) return;
+
+          await Media.updateOne(
+            {
+              _id: media._id,
+              owner: media.owner,
+              thumbnailObjectKey: null,
+            },
+            {
+              $set: {
+                thumbnailObjectKey: thumbnail.thumbnailObjectKey,
+                thumbnailContentType: thumbnail.thumbnailContentType,
+                thumbnailSize: thumbnail.thumbnailSize,
+                width: thumbnail.width,
+                height: thumbnail.height,
+              },
+            },
+          );
+
+          console.log(`[THUMBNAIL READY] ${media.fileName}`);
+        } catch (error) {
+          console.error(
+            `[BACKGROUND THUMBNAIL FAILED] ${media.fileName}`,
+            error,
+          );
+        }
+      });
+    }
+
   } catch (error) {
     console.error('completeUpload error:', error);
     return next(error);
   }
 }
+
+
 
 
 
@@ -290,23 +315,28 @@ export const getFolderMedia = async (req, res) => {
       status: 'uploaded',
       $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     })
-      .select('_id fileName contentType size objectKey thumbnailObjectKey width height createdAt')
+      .select(
+        '_id fileName contentType size objectKey thumbnailObjectKey width height createdAt'
+      )
       .sort({ createdAt: -1 })
       .lean();
 
-    const URL_EXPIRY = 60 * 10; // 10 minutes
+    const URL_EXPIRY = 60 * 10;
 
     const mediaWithUrls = await Promise.all(
       media.map(async (item) => {
-        // Thumbnail: use thumbnailObjectKey if available, otherwise fall back to original
-        const thumbnailCommand = new GetObjectCommand({
-          Bucket: process.env.AWS_S3_BUCKET,
-          Key: item.thumbnailObjectKey || item.objectKey,
-        });
+        let thumbnailUrl = null;
 
-        const thumbnailUrl = await getSignedUrl(s3, thumbnailCommand, {
-          expiresIn: URL_EXPIRY,
-        });
+        if (item.thumbnailObjectKey) {
+          thumbnailUrl = await getSignedUrl(
+            s3,
+            new GetObjectCommand({
+              Bucket: process.env.AWS_S3_BUCKET,
+              Key: item.thumbnailObjectKey,
+            }),
+            { expiresIn: URL_EXPIRY }
+          );
+        }
 
         return {
           _id: item._id,
@@ -315,9 +345,7 @@ export const getFolderMedia = async (req, res) => {
           size: item.size,
           objectKey: item.objectKey,
           thumbnailObjectKey: item.thumbnailObjectKey || null,
-          // Small image for the grid card
           thumbnailUrl,
-          // Original URL is fetched on-demand when user opens the viewer
           url: null,
           width: item.width,
           height: item.height,

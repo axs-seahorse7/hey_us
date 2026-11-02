@@ -13,6 +13,25 @@ import './GalleryLayout.css';
 
 const { Title, Text } = Typography;
 
+const RAW_EXTENSIONS = new Set([
+  '.arw', '.cr2', '.cr3', '.nef',
+  '.dng', '.raf', '.orf', '.rw2', '.pef',
+]);
+
+function requiresThumbnail(media) {
+  const extension = media.fileName
+    ?.match(/\.[^.]+$/)?.[0]
+    ?.toLowerCase();
+
+  return (
+    media.contentType?.startsWith('image/') ||
+    RAW_EXTENSIONS.has(extension)
+  );
+}
+
+const sleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 // Local-time YYYY-MM-DD (toISOString() would shift dates to UTC)
 function toLocalDateKey(value) {
   const date = value ? new Date(value) : new Date();
@@ -69,14 +88,25 @@ function GalleryLayout() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [uploadingCount, setUploadingCount] = useState(0);
-
+  
   const pendingUploads = useRef(0);
+  const pendingThumbnailIds = useRef(new Set());
 
   const fetchImages = useCallback(async () => {
     const response = await api.get('/gallery');
     const media = response.data.media || [];
 
-    setImages(media);
+    setImages((previous) => {
+      const unchanged =
+        previous.length === media.length &&
+        previous.every((item, index) =>
+          item._id === media[index]._id &&
+          item.thumbnailObjectKey === media[index].thumbnailObjectKey
+        );
+
+      return unchanged ? previous : media;
+    });
+
     setGalleryImages(media);
 
     if (userId) {
@@ -87,6 +117,66 @@ function GalleryLayout() {
 
     return media;
   }, [setGalleryImages, userId]);
+
+  const refreshPendingThumbnails = useCallback(
+    async (mediaIds) => {
+      const pendingIds = new Set(mediaIds);
+
+      const maxAttempts = 30;
+      const interval = 2000;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        await sleep(interval);
+
+        try {
+          const response = await api.get('/gallery');
+          const media = response.data.media || [];
+
+          setImages((previous) => {
+            const updated = previous.map((item) => {
+              const latest = media.find(
+                (entry) => String(entry._id) === String(item._id)
+              );
+
+              return latest?.thumbnailObjectKey &&
+                latest.thumbnailObjectKey !== item.thumbnailObjectKey
+                ? { ...item, ...latest }
+                : item;
+            });
+
+            return updated;
+          });
+
+          for (const id of pendingIds) {
+            const item = media.find(
+              (image) => String(image._id) === String(id)
+            );
+
+            if (item && (!requiresThumbnail(item) || item.thumbnailObjectKey)) {
+              pendingIds.delete(id);
+            }
+          }
+
+          console.log(
+            `[THUMBNAIL STATUS] ${pendingIds.size} remaining`
+          );
+
+          if (pendingIds.size === 0) {
+            console.log('[THUMBNAILS READY]');
+            return;
+          }
+        } catch (error) {
+          console.warn('[THUMBNAIL REFRESH FAILED]', error);
+        }
+      }
+
+      console.warn(
+        '[THUMBNAIL TIMEOUT]',
+        [...pendingIds]
+      );
+    },
+    [fetchImages]
+  );
 
   const loadInitial = useCallback(async () => {
     try {
@@ -128,32 +218,44 @@ function GalleryLayout() {
   }, [loadInitial]);
 
   // Runs once per selected file; refreshes the gallery after the last one finishes
-  async function handleUpload(file) {
-    pendingUploads.current += 1;
+ async function handleUpload(file) {
+  pendingUploads.current += 1;
+  setUploadingCount(pendingUploads.current);
+
+  try {
+    const result = await uploadFile(file);
+
+    if (result?.mediaId) {
+      pendingThumbnailIds.current.add(String(result.mediaId));
+    }
+  } catch (err) {
+    console.error('Upload failed:', err);
+    messageApi.error(err.message || `Failed to upload ${file.name}.`);
+  } finally {
+    pendingUploads.current -= 1;
     setUploadingCount(pendingUploads.current);
 
-    try {
-      await uploadFile(file);
-    } catch (err) {
-      console.error('Upload failed:', err);
-      messageApi.error(err.message || `Failed to upload ${file.name}.`);
-    } finally {
-      pendingUploads.current -= 1;
-      setUploadingCount(pendingUploads.current);
+    if (pendingUploads.current === 0) {
+      try {
+        const uploadedIds = [...pendingThumbnailIds.current];
 
-      if (pendingUploads.current === 0) {
-        try {
-          await fetchImages();
-          messageApi.success('Gallery updated');
-        } catch (err) {
-          console.error('Refresh failed:', err);
-          messageApi.error('Uploaded, but could not refresh the gallery.');
-        }
+        pendingThumbnailIds.current.clear();
+
+        await fetchImages();
+
+        messageApi.success('Upload completed');
+
+        // Continue checking thumbnails without blocking the UI.
+        refreshPendingThumbnails(uploadedIds);
+      } catch (err) {
+        console.error('Refresh failed:', err);
+        messageApi.error('Uploaded, but could not refresh the gallery.');
       }
     }
-
-    return Upload.LIST_IGNORE; // never add to antd's internal list
   }
+
+  return Upload.LIST_IGNORE;
+}
 
   const groupedMedia = useMemo(() => groupImagesByDate(images), [images]);
   const uploading = uploadingCount > 0;
@@ -231,7 +333,7 @@ function GalleryLayout() {
 
         <div className="gallery-toolbar">
           <Upload
-            accept="image/*"
+            accept="*/*"
             multiple
             showUploadList={false}
             disabled={uploading}
