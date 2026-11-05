@@ -102,6 +102,44 @@ export const getMedia = async (req, res) => {
 };
 
 
+export const toggleFavorite = async (req, res, next) => {
+  try {
+    const { mediaId } = req.params
+
+    if (!mongoose.Types.ObjectId.isValid(mediaId)) {
+      return res.status(400).json({
+        message: 'Invalid media id.',
+      })
+    }
+
+    const media = await Media.findOne({
+      _id: mediaId,
+      owner: req.user.id,
+      status: 'uploaded',
+      $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+    })
+
+    if (!media) {
+      return res.status(404).json({
+        message: 'Media not found.',
+      })
+    }
+
+    media.isFavorite = !media.isFavorite
+    await media.save()
+
+    return res.json({
+      message: media.isFavorite
+        ? 'Added to favourites.'
+        : 'Removed from favourites.',
+      mediaId: media._id,
+      isFavorite: media.isFavorite,
+    })
+  } catch (error) {
+    return next(error)
+  }
+}
+
 export async function createUploadUrl(request, response, next) {
   try {
     const {
@@ -511,3 +549,5 @@ export async function deleteMedia(request, response, next) {
     return next(error);
   }
 };
+
+

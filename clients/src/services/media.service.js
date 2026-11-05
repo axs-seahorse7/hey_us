@@ -122,3 +122,13 @@ export async function getThumbnailUrl(mediaId) {
     throw error;
   }
 }
+
+export async function toggleFavorite(mediaId) {
+  try {
+    const response = await api.patch(`/media/${mediaId}/favorite`);
+    return response.data;
+  } catch (error) {
+    console.error('toggleFavorite error:', error);
+    throw error;
+  }
+}

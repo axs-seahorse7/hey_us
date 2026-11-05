@@ -27,10 +27,14 @@ export const getAllMedia = async (req, res) => {
       $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     };
 
+    if (req.query.favorite === 'true') {
+      filter.isFavorite = true
+    }
+
     const [media, total] = await Promise.all([
       Media.find(filter)
         .select(
-          '_id fileName contentType size objectKey thumbnailObjectKey createdAt width height'
+          '_id fileName contentType size objectKey thumbnailObjectKey createdAt width height isFavorite'
         )
         .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
@@ -58,6 +62,7 @@ export const getAllMedia = async (req, res) => {
         return {
           _id: item._id,
           fileName: item.fileName,
+          isFavorite: item.isFavorite ?? false,
           contentType: item.contentType,
           size: item.size,
           objectKey: item.objectKey,

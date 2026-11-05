@@ -5,10 +5,12 @@ import {
   createUploadUrl,
   completeUpload,
   getMedia,
+  toggleFavorite,
   getFolderMedia,
   getOriginalUrl,
   getThumbnailUrl,
   deleteMedia,
+
 } from '../controllers/media.controller.js';
 
 import { authenticate } from '../middleware/authenticate.js';
@@ -22,6 +24,7 @@ router.get('/folders/:folderId', authenticate, listFolderMedia);
 router.get('/:mediaId/original-url', authenticate, getOriginalUrl);
 router.get('/:mediaId/thumbnail-url', authenticate, getThumbnailUrl);
 
+router.patch('/:mediaId/favorite', authenticate, toggleFavorite);
 router.get('/:mediaId', authenticate, getMedia);
 router.delete('/:mediaId', authenticate, deleteMedia);
 

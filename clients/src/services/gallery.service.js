@@ -48,3 +48,27 @@ export const uploadFile = async (file, folderId) => {
 
   return { mediaId };
 };
+
+export const getFavoriteMedia = async () => {
+  try {
+    const firstResponse = await api.get('/gallery', {
+      params: { favorite: true, page: 1 },
+    })
+
+    const { media = [], pagination } = firstResponse.data
+    const allMedia = [...media]
+
+    for (let page = 2; page <= pagination.totalPages; page++) {
+      const response = await api.get('/gallery', {
+        params: { favorite: true, page },
+      })
+
+      allMedia.push(...(response.data.media || []))
+    }
+
+    return allMedia
+  } catch (error) {
+    console.error('getFavoriteMedia error:', error)
+    throw error
+  }
+}

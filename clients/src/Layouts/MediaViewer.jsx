@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getFileIcon } from '../utils/fileIcon'
 import { Alert, Button, ConfigProvider, Modal, Tooltip, Typography, theme } from 'antd'
 import {
@@ -15,13 +15,15 @@ import {
   PauseCircleFilled,
   CustomerServiceOutlined,
   DownloadOutlined,
+  HeartOutlined,
+  HeartFilled ,
 } from '@ant-design/icons'
 
 import { useMedia } from '../context/MediaContext'
 import { useAuth } from '../Authentication/Context/AuthContext'
 
 import { getOrFetchOriginal, markOriginalViewed, removeCachedOriginal, removeCachedThumbnail } from '../services/mediaCache.service'
-import { deleteMedia, getOriginalUrl } from '../services/media.service'
+import { deleteMedia, getOriginalUrl, toggleFavorite  } from '../services/media.service'
 import { getMediaType } from '../utils/mediaType'
 
 import './MediaViewer.css'
@@ -38,6 +40,7 @@ const RAW_EXTENSIONS = [
 function MediaViewer() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const userId = user?.user?._id
   const {
@@ -51,9 +54,11 @@ function MediaViewer() {
     removeViewerMedia,
     galleryImages,
     openViewer,
+    syncMediaItems,
   } = useMedia()
 
   const [downloadNotifications, setDownloadNotifications] = useState([])
+  const [favoriteUpdating, setFavoriteUpdating] = useState(false)
 
   const [activeAudioUrl, setActiveAudioUrl] = useState('')
   const [audioLoading, setAudioLoading] = useState(false)
@@ -140,6 +145,28 @@ function MediaViewer() {
     audio.currentTime = Number(event.target.value)
     setAudioCurrentTime(audio.currentTime)
   }
+
+  async function handleToggleFavorite() {
+    if (!currentMedia?._id || favoriteUpdating) return
+
+    try {
+      setFavoriteUpdating(true)
+
+      const result = await toggleFavorite(String(currentMedia._id))
+
+      syncMediaItems([
+        {
+          _id: result.mediaId,
+          isFavorite: result.isFavorite,
+        },
+      ])
+    } catch (error) {
+      console.error('Failed to update favourite:', error)
+    } finally {
+      setFavoriteUpdating(false)
+    }
+  }
+
 
   useEffect(() => {
     if (
@@ -389,13 +416,11 @@ function MediaViewer() {
 
   const handleClose = useCallback(() => {
     if (window.location.pathname.includes('/folders/')) {
-      // Viewer was opened as an overlay from a folder — just close it, stay on the folder page
       closeViewer()
     } else {
-      // Gallery viewer: navigate back to /gallery (the prevIdRef transition will close the viewer)
-      navigate('/gallery')
+      navigate(location.state?.from || '/gallery')
     }
-  }, [navigate, closeViewer])
+  }, [navigate, location.state, closeViewer])
 
   // --------------------------------------------------
   // Zoom helpers
@@ -1056,6 +1081,22 @@ function MediaViewer() {
           </Tooltip>
 
           <span className="media-viewer__divider" />
+
+          <Tooltip title={currentMedia?.isFavorite ? 'Remove from favourites' : 'Add to favourites'}>
+            <Button
+              type="text"
+              shape="circle"
+              className="glass-btn"
+              icon={
+                currentMedia?.isFavorite
+                  ? <HeartFilled style={{ color: '#ff4d6d' }} />
+                  : <HeartOutlined />
+              }
+              onClick={handleToggleFavorite}
+              loading={favoriteUpdating}
+              aria-label="Toggle favourite"
+            />
+          </Tooltip>
 
           <Tooltip title="Delete">
             <Button
