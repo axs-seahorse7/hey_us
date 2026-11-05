@@ -7,7 +7,7 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 
-import { generateThumbnail, isImageMedia } from '../utils/mediaThumbnail.js';
+import { generateThumbnail, isImageMedia, isVideoMedia } from '../utils/mediaThumbnail.js';
 import {getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { isBlockedFile } from '../utils/fileValidation.js';
 
@@ -248,7 +248,7 @@ export async function completeUpload(request, response, next) {
       media: media.toJSON(),
     });
 
-    if (isImageMedia(media) && !media.thumbnailObjectKey) {
+    if ((isImageMedia(media) || isVideoMedia(media)) && !media.thumbnailObjectKey) {
       setImmediate(async () => {
         try {
           const thumbnail = await generateThumbnail(media);
@@ -391,7 +391,7 @@ export const getOriginalUrl = async (req, res) => {
         Bucket: process.env.AWS_S3_BUCKET,
         Key: media.objectKey,
       }),
-      { expiresIn: 60 * 10 },
+      { expiresIn: 60 * 60 },
     );
 
     return res.json({ url });

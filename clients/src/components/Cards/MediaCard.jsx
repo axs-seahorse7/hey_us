@@ -1,9 +1,10 @@
 
 import { useEffect, useState } from 'react'
 import { Card, Flex, Image, Typography } from 'antd'
-import { FileOutlined } from '@ant-design/icons'
+import { FileOutlined,  CustomerServiceOutlined, PlayCircleFilled } from '@ant-design/icons'
 import { useAuth } from '../../Authentication/Context/AuthContext'
 import { getOrFetchThumbnail } from '../../services/mediaCache.service'
+import { getMediaType } from '../../utils/mediaType'
 import './MediaCard.css'
 
 
@@ -24,12 +25,14 @@ function MediaCard({ media, onClick }) {
   const { user } = useAuth()
   const userId = user?.user?._id
 
-  const isImage = media.contentType?.startsWith('image/') || isRawMedia(media);
+  const mediaType = getMediaType(media)
+  const isImage = mediaType === 'image' || mediaType === 'raw'
+  const hasThumbnail = isImage || mediaType === 'video'
 
   const [thumbnailSrc, setThumbnailSrc] = useState(null)
 
   useEffect(() => {
-    if (!isImage || !userId || !media._id) {
+    if (!hasThumbnail || !userId || !media._id) {
       setThumbnailSrc(null)
       return
     }
@@ -100,18 +103,26 @@ function MediaCard({ media, onClick }) {
       onClick={() => onClick?.(media)}
       onKeyDown={handleKeyDown}
     >
-      {isImage ? (
+      {hasThumbnail ? (
         <>
-          {thumbnailSrc ? (
-            <Image
-              src={thumbnailSrc}
-              alt={media.fileName}
-              preview={false}
-              rootClassName="pin-card__image"
-            />
-          ) : (
-            <div className="pin-card__image-placeholder" />
-          )}
+          <div className="pin-card__media-preview">
+            {thumbnailSrc ? (
+              <Image
+                src={thumbnailSrc}
+                alt={media.fileName}
+                preview={false}
+                rootClassName="pin-card__image"
+              />
+            ) : (
+              <div className="pin-card__image-placeholder" />
+            )}
+
+            {mediaType === 'video' && (
+              <div className="pin-card__video-play">
+                <PlayCircleFilled />
+              </div>
+            )}
+          </div>
 
           {media.fileName && (
             <Flex className="pin-card__caption" align="center">
@@ -132,7 +143,12 @@ function MediaCard({ media, onClick }) {
           gap={10}
           className="pin-card__file"
         >
-          <FileOutlined className="pin-card__file-icon" />
+          {mediaType === 'audio' ? (
+            <CustomerServiceOutlined className="pin-card__audio-icon" />
+          ) : (
+            <FileOutlined className="pin-card__file-icon" />
+          )}
+
           <Typography.Text
             ellipsis
             className="pin-card__file-name"

@@ -32,6 +32,11 @@ const RAW_EXTENSIONS = new Set([
   '.dng', '.raf', '.orf', '.rw2', '.pef',
 ]);
 
+const VIDEO_EXTENSIONS = new Set([
+  '.mp4', '.webm', '.mov', '.m4v',
+  '.avi', '.mkv',
+]);
+
 function requiresThumbnail(media) {
   const extension = media.fileName
     ?.match(/\.[^.]+$/)?.[0]
@@ -39,7 +44,9 @@ function requiresThumbnail(media) {
 
   return (
     media.contentType?.startsWith('image/') ||
-    RAW_EXTENSIONS.has(extension)
+    RAW_EXTENSIONS.has(extension) ||
+    media.contentType?.startsWith('video/') ||
+    VIDEO_EXTENSIONS.has(extension)
   );
 }
 
@@ -332,6 +339,7 @@ function FolderView() {
             beforeUpload={handleUpload}
           >
             <Button
+              htmlType="button"
               type="primary"
               shape="round"
               icon={<PlusOutlined />}

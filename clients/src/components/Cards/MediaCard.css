@@ -19,6 +19,41 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.pin-card__audio-icon {
+  font-size: 44px;
+  color: #8b5cf6;
+}
+
+
+.pin-card__media-preview {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.pin-card__video-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.pin-card__video-play .anticon {
+  font-size: 58px;
+  color: rgba(255, 255, 255, 0.85);
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.35));
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+@media (hover: hover) {
+  .pin-card:hover .pin-card__video-play .anticon {
+    transform: scale(1.12);
+    color: rgba(255, 255, 255, 1);
+  }
+}
+
 /* Hover lift only on devices with a real pointer (no sticky hover / repaints on touch) */
 @media (hover: hover) {
   .pin-card.ant-card:hover {

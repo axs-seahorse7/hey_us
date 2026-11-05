@@ -445,22 +445,13 @@ async function enforceThumbnailCacheLimit(protectedKeys = []) {
 
 export async function getCachedThumbnail(userId, mediaId) {
   if (!userId || !mediaId) return null;
-
   const key = createCacheKey(userId, mediaId);
 
-  const entry = await getEntryFromStore(
-    THUMBNAIL_STORE_NAME,
-    key,
-  );
+  const entry = await getEntryFromStore(THUMBNAIL_STORE_NAME, key);
 
   if (!entry?.blob) return null;
-
   entry.lastAccessed = Date.now();
-
-  await saveEntryToStore(
-    THUMBNAIL_STORE_NAME,
-    entry,
-  );
+  await saveEntryToStore(THUMBNAIL_STORE_NAME, entry);
 
   return entry.blob;
 }
@@ -496,11 +487,7 @@ export async function cacheThumbnail(userId, mediaId, blob) {
 // Fetch thumbnail or return cached thumbnail
 // --------------------------------------------------
 
-export async function getOrFetchThumbnail(
-  userId,
-  mediaId,
-  thumbnailUrl,
-) {
+export async function getOrFetchThumbnail( userId, mediaId, thumbnailUrl) {
   if (!userId || !mediaId) {
     throw new Error('User ID and media ID are required.');
   }
@@ -521,11 +508,8 @@ export async function getOrFetchThumbnail(
     }
 
     if (cachedBlob) {
-      console.log('[THUMBNAIL CACHE HIT]', mediaId);
       return cachedBlob;
     }
-
-    console.log('[THUMBNAIL CACHE MISS]', mediaId);
 
     if (!thumbnailUrl) {
       throw new Error('Thumbnail URL is unavailable.');
@@ -535,10 +519,7 @@ export async function getOrFetchThumbnail(
 
     // If the signed URL has expired, obtain a fresh one.
     if (response.status === 403) {
-      console.log('[THUMBNAIL URL EXPIRED] Refreshing URL:', mediaId);
-
       const freshUrl = await getThumbnailUrl(mediaId);
-
       response = await fetch(freshUrl);
     }
 
@@ -556,15 +537,9 @@ export async function getOrFetchThumbnail(
       throw new Error('Thumbnail download returned an empty file.');
     }
 
-    console.log('[THUMBNAIL DOWNLOADED]', {
-      mediaId,
-      size: blob.size,
-      type: blob.type,
-    });
 
     try {
       await cacheThumbnail(userId, mediaId, blob);
-      console.log('[THUMBNAIL CACHE SAVED]', mediaId);
     } catch (error) {
       console.warn('[THUMBNAIL CACHE SAVE FAILED]', mediaId, error);
     }
@@ -674,7 +649,6 @@ export async function cacheMetadata(userId, cacheKey, data) {
 
   await saveEntryToStore(METADATA_STORE_NAME, entry);
 
-  console.log('[METADATA CACHE SAVED]', cacheKey);
 }
 
 export async function getCachedMetadata(userId, cacheKey) {

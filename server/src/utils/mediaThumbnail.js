@@ -7,6 +7,14 @@ import {
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 
+import ffmpegPath from 'ffmpeg-static';
+import { spawn } from 'node:child_process';
+import { createWriteStream } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
+
 import { s3 } from '../config/s3.js';
 
 const BUCKET = process.env.AWS_S3_BUCKET;
@@ -39,6 +47,24 @@ const RAW_EXTENSIONS = new Set([
   '.rw2',
   '.pef',
 ]);
+
+const VIDEO_EXTENSIONS = new Set([
+  '.mp4',
+  '.webm',
+  '.mov',
+  '.m4v',
+  '.avi',
+  '.mkv',
+]);
+
+export function isVideoMedia(media) {
+  const extension = getExtension(media.fileName);
+
+  return (
+    VIDEO_EXTENSIONS.has(extension) ||
+    media.contentType?.startsWith('video/')
+  );
+}
 
 function getExtension(fileName = '') {
   const lastDot = fileName.lastIndexOf('.');
@@ -93,7 +119,128 @@ async function getImageBuffer(originalBuffer, media) {
   return originalBuffer;
 }
 
+async function extractVideoFrame(inputPath, timestamp = '1') {
+  return new Promise((resolve, reject) => {
+    const process = spawn(ffmpegPath, [
+      '-hide_banner',
+      '-loglevel', 'error',
+      '-ss', timestamp,
+      '-i', inputPath,
+      '-frames:v', '1',
+      '-vf', 'scale=480:480:force_original_aspect_ratio=decrease',
+      '-f', 'image2pipe',
+      '-vcodec', 'mjpeg',
+      'pipe:1',
+    ]);
+
+    const chunks = [];
+    let errorOutput = '';
+
+    process.stdout.on('data', (chunk) => chunks.push(chunk));
+
+    process.stderr.on('data', (chunk) => {
+      errorOutput += chunk.toString();
+      errorOutput = errorOutput.slice(-4000);
+    });
+
+    process.on('error', reject);
+
+    process.on('close', (code) => {
+      const buffer = Buffer.concat(chunks);
+
+      if (code !== 0 || !buffer.length) {
+        reject(new Error(
+          `FFmpeg frame extraction failed: ${errorOutput || `Exit code ${code}`}`
+        ));
+        return;
+      }
+
+      resolve(buffer);
+    });
+  });
+}
+
+async function generateVideoThumbnail(media) {
+  const tempDir = await mkdtemp(
+    path.join(tmpdir(), 'dear-us-video-')
+  );
+
+  const inputPath = path.join(tempDir, 'original-video');
+
+  try {
+    const original = await s3.send(
+      new GetObjectCommand({
+        Bucket: BUCKET,
+        Key: media.objectKey,
+      }),
+    );
+
+    if (!original.Body) {
+      throw new Error('Original video body is empty.');
+    }
+
+    // Stream S3 into a temporary file instead of loading
+    // the entire video into application memory.
+    await pipeline(
+      original.Body,
+      createWriteStream(inputPath),
+    );
+
+    let frame;
+
+    try {
+      frame = await extractVideoFrame(inputPath, '1');
+    } catch {
+      // Short videos may not have a frame at one second.
+      frame = await extractVideoFrame(inputPath, '0');
+    }
+
+    const { data, info } = await sharp(frame)
+      .resize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .webp({
+        quality: THUMBNAIL_QUALITY,
+        effort: 4,
+      })
+      .toBuffer({ resolveWithObject: true });
+
+    const thumbnailObjectKey =
+      `users/${media.owner}/media/${media._id}/thumbnail.webp`;
+
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: thumbnailObjectKey,
+        Body: data,
+        ContentType: 'image/webp',
+        ContentLength: data.length,
+        CacheControl: 'private, max-age=86400',
+      }),
+    );
+
+    console.log(`[VIDEO THUMBNAIL READY] ${media.fileName}`);
+
+    return {
+      thumbnailObjectKey,
+      thumbnailContentType: 'image/webp',
+      thumbnailSize: data.length,
+      width: info.width,
+      height: info.height,
+      thumbnailWidth: info.width,
+      thumbnailHeight: info.height,
+    };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
 export async function generateThumbnail(media) {
+  if (isVideoMedia(media)) {
+    return generateVideoThumbnail(media);
+  }
+
   if (!isImageMedia(media)) {
     return null;
   }

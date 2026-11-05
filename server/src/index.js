@@ -13,7 +13,7 @@ const allowedOrigin = [
   'https://hoppscotch.io',
   'http://localhost:5173',
   'http://10.134.64.36:5173',
-  'http://172.17.243.36:5173',
+  'http://10.92.243.36:5173',
 ];
 
 app.use(

@@ -9,11 +9,18 @@ import {
   MinusOutlined,
   PlusOutlined,
   RightOutlined,
+  PlayCircleFilled,
+  PauseCircleFilled,
+  CustomerServiceOutlined,
 } from '@ant-design/icons'
+
 import { useMedia } from '../context/MediaContext'
 import { useAuth } from '../Authentication/Context/AuthContext'
-import { deleteMedia } from '../services/media.service'
-import { getOrFetchOriginal, markOriginalViewed, removeCachedOriginal } from '../services/mediaCache.service'
+
+import { getOrFetchOriginal, markOriginalViewed, removeCachedOriginal, removeCachedThumbnail } from '../services/mediaCache.service'
+import { deleteMedia, getOriginalUrl } from '../services/media.service'
+import { getMediaType } from '../utils/mediaType'
+
 import './MediaViewer.css'
 
 const MIN_ZOOM = 1
@@ -51,6 +58,22 @@ function MediaViewer() {
     openViewer,
   } = useMedia()
 
+  const [activeAudioUrl, setActiveAudioUrl] = useState('')
+  const [audioLoading, setAudioLoading] = useState(false)
+  const [audioError, setAudioError] = useState('')
+
+  const audioRef = useRef(null)
+  const [audioPlaying, setAudioPlaying] = useState(false)
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0)
+  const [audioDuration, setAudioDuration] = useState(0)
+
+  const currentMediaType = getMediaType(currentMedia || {})
+
+  const [activeVideoUrl, setActiveVideoUrl] = useState('')
+  const [videoLoading, setVideoLoading] = useState(false)
+  const [videoError, setVideoError] = useState('')
+  const videoRef = useRef(null)
+
   const trackRef = useRef(null)
   const isScrollingFromCode = useRef(false)
   const hasInitializedViewer = useRef(false)
@@ -86,13 +109,138 @@ function MediaViewer() {
     setOriginalImageLoaded(false)
   }, [])
 
+  function toggleAudioPlayback() {
+    const audio = audioRef.current
+    if (!audio) return
+
+    if (audio.paused) {
+      audio.play().catch((error) => {
+        console.error('Audio playback failed:', error)
+        setAudioError('Unable to play this audio file.')
+      })
+    } else {
+      audio.pause()
+    }
+  }
+
+  function formatAudioTime(seconds) {
+    if (!Number.isFinite(seconds)) return '0:00'
+
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = Math.floor(seconds % 60)
+
+    return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`
+  }
+
+  function handleAudioSeek(event) {
+    const audio = audioRef.current
+    if (!audio) return
+
+    audio.currentTime = Number(event.target.value)
+    setAudioCurrentTime(audio.currentTime)
+  }
+
+  useEffect(() => {
+    if (
+      !viewerOpen ||
+      !currentMedia ||
+      !userId ||
+      currentMediaType !== 'audio'
+    ) {
+      setActiveAudioUrl('')
+      setAudioLoading(false)
+      setAudioError('')
+      return
+    }
+
+    let cancelled = false
+
+    setActiveAudioUrl('')
+    setAudioLoading(true)
+    setAudioError('')
+    setAudioCurrentTime(0)
+    setAudioDuration(0)
+    setAudioPlaying(false)
+
+    getOriginalUrl(String(currentMedia._id))
+      .then((url) => {
+        if (cancelled) return
+
+        setActiveAudioUrl(url)
+      })
+      .catch((error) => {
+        console.error('Audio URL generation failed:', error)
+
+        if (!cancelled) {
+          setAudioError('Could not load this audio file.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setAudioLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    viewerOpen,
+    currentMedia?._id,
+    currentMediaType,
+    userId,
+  ])
+
+  useEffect(() => {
+    if (
+      !viewerOpen ||
+      !currentMedia ||
+      !userId ||
+      currentMediaType !== 'video'
+    ) {
+      setActiveVideoUrl('')
+      setVideoLoading(false)
+      setVideoError('')
+      return
+    }
+
+    let cancelled = false
+
+    setActiveVideoUrl('')
+    setVideoLoading(true)
+    setVideoError('')
+
+    getOriginalUrl(String(currentMedia._id))
+      .then((url) => {
+        if (cancelled) return
+        setActiveVideoUrl(url)
+      })
+      .catch((error) => {
+        console.error('Video URL generation failed:', error)
+
+        if (!cancelled) {
+          setVideoError('Could not load this video.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setVideoLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    viewerOpen,
+    currentMedia?._id,
+    currentMediaType,
+    userId,
+  ])
+
  
   useEffect(() => {
     if (
       !viewerOpen ||
       !currentMedia ||
       !userId ||
-      (!currentMedia.contentType?.startsWith('image/') || isRawMedia(currentMedia))
+      currentMediaType !== 'image'
     ) {
       revokeActiveObjectUrl()
       setOriginalLoading(false)
@@ -107,8 +255,6 @@ function MediaViewer() {
     setOriginalLoading(false)
     setOriginalImageLoaded(false)
     setOriginalError('')
-
-    console.log('[ORIGINAL LOAD STARTED]', mediaId)
 
     getOrFetchOriginal(userId, mediaId, 'viewed', {
       onCacheMiss: () => {
@@ -483,13 +629,19 @@ function MediaViewer() {
 
       await deleteMedia(currentMedia._id)
       if (userId) {
-        await removeCachedOriginal(userId, String(currentMedia._id)).catch((error) => {
-          console.warn('Could not remove deleted media from local cache:', error)
-        })
-      }
-      removeViewerMedia(currentMedia._id)
+        const mediaId = String(currentMedia._id);
 
+        await Promise.all([
+          removeCachedOriginal(userId, mediaId),
+          removeCachedThumbnail(userId, mediaId),
+        ]).catch((error) => {
+          console.warn('Could not remove deleted media from local cache:', error);
+        });
+      }
+
+      removeViewerMedia(currentMedia._id)
       setDeleteConfirmOpen(false)
+      
     } catch (error) {
       console.error('Failed to delete media:', error)
       setDeleteError(
@@ -524,7 +676,7 @@ function MediaViewer() {
     >
       <div className="media-viewer">
         {/* Ambient blurred backdrop, colours follow the current photo */}
-        {currentMedia?.contentType?.startsWith('image/') && (
+        {(currentMediaType === 'image' || currentMediaType === 'raw') && (
           <div
             className="media-viewer__ambient"
             style={{
@@ -559,6 +711,7 @@ function MediaViewer() {
         {/* Slides */}
         <div className="media-viewer__track" ref={trackRef}>
           {viewerMedia.map((media, index) => {
+            const mediaType = getMediaType(media)
             const isCurrent = index === viewerIndex
             const mediaId = String(media._id)
             // Non-active slides use thumbnails only; the active slide uses its downloaded original.
@@ -568,7 +721,7 @@ function MediaViewer() {
 
             return (
               <div className="media-viewer__slide" key={media._id}>
-                {media.contentType?.startsWith('image/') || isRawMedia(media) ? (
+                {mediaType === 'image' || mediaType === 'raw' ? (
                   <div
                     className={`media-viewer__image-container${
                       isCurrent && zoom > 1 ? ' media-viewer__image-container--zoomed' : ''
@@ -632,12 +785,98 @@ function MediaViewer() {
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="media-viewer__file glass">
-                    <FileOutlined />
-                    <Typography.Text>{media.fileName}</Typography.Text>
+                ) : mediaType === 'audio' && isCurrent ? (
+                <div className="media-viewer__file glass">
+                  <div className="media-viewer__audio">
+
+                    <div className="media-viewer__audio-artwork">
+                      <CustomerServiceOutlined />
+                    </div>
+
+                    <Typography.Title level={4}>
+                      {media.fileName}
+                    </Typography.Title>
+
+                    {audioLoading && <p>Loading audio...</p>}
+
+                    {audioError && (
+                      <Alert type="error" message={audioError} showIcon />
+                    )}
+
+                    {activeAudioUrl && (
+                      <>
+                        <audio
+                          ref={audioRef}
+                          src={activeAudioUrl}
+                          preload="metadata"
+                          onLoadedMetadata={(event) => {
+                            setAudioDuration(event.currentTarget.duration)
+                          }}
+                          onTimeUpdate={(event) => {
+                            setAudioCurrentTime(event.currentTarget.currentTime)
+                          }}
+                          onPlay={() => setAudioPlaying(true)}
+                          onPause={() => setAudioPlaying(false)}
+                          onEnded={() => setAudioPlaying(false)}
+                        />
+
+                        <button
+                          type="button"
+                          className="media-viewer__audio-play"
+                          onClick={toggleAudioPlayback}
+                          aria-label={audioPlaying ? 'Pause audio' : 'Play audio'}
+                        >
+                          {audioPlaying ? (
+                            <PauseCircleFilled />
+                          ) : (
+                            <PlayCircleFilled />
+                          )}
+                        </button>
+
+                        <div className="media-viewer__audio-progress">
+                          <span>{formatAudioTime(audioCurrentTime)}</span>
+
+                          <input
+                            type="range"
+                            min="0"
+                            max={audioDuration || 0}
+                            step="0.1"
+                            value={Math.min(audioCurrentTime, audioDuration || 0)}
+                            onChange={handleAudioSeek}
+                          />
+
+                          <span>{formatAudioTime(audioDuration)}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
-                )}
+                </div>
+                ) : mediaType === 'video' && isCurrent ? (
+                <div className="media-viewer__video">
+                  {videoLoading && <p>Loading video...</p>}
+
+                  {videoError && (
+                    <Alert type="error" message={videoError} showIcon />
+                  )}
+
+                  {activeVideoUrl && (
+                    <video
+                      ref={videoRef}
+                      src={activeVideoUrl}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      onError={() => {
+                        setVideoError('This video format may not be supported by your browser.')
+                      }}
+                    />
+                  )}
+                </div>):  (
+                <div className="media-viewer__file glass">
+                  <FileOutlined />
+                  <Typography.Text>{media.fileName}</Typography.Text>
+                </div>
+              )}
               </div>
             )
           })}
