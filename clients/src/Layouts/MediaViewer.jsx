@@ -361,6 +361,7 @@ function MediaViewer() {
   }, [])
 
   // Track the previous route :id to detect navigation away from /gallery/:id
+  
   const prevIdRef = useRef(id)
 
   useEffect(() => {
@@ -368,22 +369,23 @@ function MediaViewer() {
     prevIdRef.current = id
 
     if (id) {
-      // Deep-link or Gallery tab: open viewer from gallery images if not already open
-      const target = galleryImages.find((m) => m._id === id)
-      if (target) {
-        openViewer(target, galleryImages)
+      // Only initialize from the global gallery when the viewer
+      // is not already open. Preserve the list supplied by the page.
+      if (!viewerOpen) {
+        const target = galleryImages.find(
+          (media) => String(media._id) === String(id)
+        )
+
+        if (target) {
+          openViewer(target, galleryImages)
+        }
       }
     } else if (prevId) {
-      // id went from a value → undefined: user navigated away from /gallery/:id
-      // (e.g. pressed Back or switched tabs). Close the viewer.
       closeViewer()
     }
-    // NOTE: viewerOpen is intentionally NOT in the deps list.
-    // Adding it would cause a feedback loop: openViewer() sets viewerOpen=true,
-    // which re-runs this effect, and since id is undefined on folder routes,
-    // closeViewer() would fire immediately — preventing folder media from opening.
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, closeViewer, galleryImages, openViewer])
+  }, [id, viewerOpen, closeViewer, galleryImages, openViewer])
 
   const handleClose = useCallback(() => {
     if (window.location.pathname.includes('/folders/')) {

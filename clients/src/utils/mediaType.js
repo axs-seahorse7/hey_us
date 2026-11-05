@@ -106,3 +106,28 @@ export const getMediaType = (media = {}) => {
 
   return 'unknown';
 };
+
+
+export const getMediaCategory = (media) => {
+  const type = getMediaType(media)
+
+  switch (type) {
+    case 'image':
+    case 'raw':
+      return 'gallery'
+
+    case 'video':
+      return 'videos'
+
+    case 'audio':
+    case 'text':
+      return 'notes'
+
+    case 'pdf':
+    case 'office':
+    case 'archive':
+    case 'unknown':
+    default:
+      return 'files'
+  }
+}

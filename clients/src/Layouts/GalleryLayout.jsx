@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, ConfigProvider, Empty, Result, Skeleton, Typography, Upload, message } from 'antd';
-import { CameraOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../services/api';
+
+import { useAuth } from '../Authentication/Context/AuthContext';
 import MediaGrid from '../components/Grids/MediaGrid';
 import { useMedia } from '../context/MediaContext';
-import { useAuth } from '../Authentication/Context/AuthContext';
-import {cacheMetadata, getCachedMetadata,} from '../services/mediaCache.service';
 
+import {cacheMetadata, getCachedMetadata,} from '../services/mediaCache.service';
 import { uploadFile } from '../services/gallery.service';
+import { getMediaCategory } from '../utils/mediaType'
+
+import { Button, ConfigProvider, Empty, Result, Skeleton, Typography, Upload, message } from 'antd';
+import { CameraOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+
 import './GalleryLayout.css';
 
 const { Title, Text } = Typography;
@@ -288,7 +292,16 @@ function GalleryLayout() {
     return Upload.LIST_IGNORE;
   } 
 
-  const groupedMedia = useMemo(() => groupImagesByDate(images), [images]);
+  const galleryMedia = useMemo(
+    () => images.filter((item) => getMediaCategory(item) === 'gallery'),
+    [images]
+  )
+
+  const groupedMedia = useMemo(
+    () => groupImagesByDate(galleryMedia),
+    [galleryMedia]
+  )
+
   const uploading = uploadingCount > 0;
 
   const theme = {
@@ -327,7 +340,7 @@ function GalleryLayout() {
         />
       </div>
     );
-  } else if (images.length === 0) {
+  } else if (galleryMedia.length === 0) {
     content = (
       <div className="gallery-state glass-card">
         <Empty
@@ -348,7 +361,7 @@ function GalleryLayout() {
       <MediaGrid
         groupedMedia={groupedMedia}
         onMediaClick={(selectedMedia) => {
-          openViewer(selectedMedia, images)
+          openViewer(selectedMedia, galleryMedia)
           navigate(`/gallery/${selectedMedia._id}`)
         }}
       />

@@ -12,6 +12,8 @@ import {
   PictureFilled,
   PlaySquareFilled,
   SettingFilled,
+  FileTextFilled,
+  FileFilled,
 } from '@ant-design/icons'
 import './Navbar.css'
 
@@ -29,6 +31,8 @@ const LOGO_COLORS = { from: '#ff9ec7', to: '#ff375f' }
 // `from` / `to` are the gradient colours of each colourful icon.
 const menuItems = [
   { name: 'Videos', path: '/videos', icon: <PlaySquareFilled />, from: '#ff7a8a', to: '#ff2d55' },
+  { name: 'Notes', path: '/notes', icon: <FileTextFilled />, from: '#b794f6', to: '#6d3fd6' },
+  { name: 'Files', path: '/files', icon: <FileFilled />, from: '#5eead4', to: '#0f9d8a' },
   { name: 'Favourites', path: '/favorites', icon: <HeartFilled />, from: '#ff9ec7', to: '#e0338f' },
   { name: 'Recent', path: '/recent', icon: <ClockCircleFilled />, from: '#ffb84d', to: '#ff7a00' },
   { name: 'Shot types', path: '/shot-types', icon: <CameraFilled />, from: '#5ac8fa', to: '#007aff' },
