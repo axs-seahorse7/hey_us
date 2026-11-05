@@ -54,6 +54,20 @@
   }
 }
 
+.pin-card__file-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  transition: transform 0.2s ease;
+}
+
+.pin-card:hover .pin-card__file-icon-wrapper {
+  transform: scale(1.08);
+}
 /* Hover lift only on devices with a real pointer (no sticky hover / repaints on touch) */
 @media (hover: hover) {
   .pin-card.ant-card:hover {

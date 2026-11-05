@@ -379,7 +379,7 @@ export const getOriginalUrl = async (req, res) => {
       _id: mediaId,
       owner: req.user.id,
       status: 'uploaded',
-    }).select('objectKey');
+    }).select('objectKey fileName');
 
     if (!media) {
       return res.status(404).json({ message: 'Media not found.' });
@@ -390,6 +390,8 @@ export const getOriginalUrl = async (req, res) => {
       new GetObjectCommand({
         Bucket: process.env.AWS_S3_BUCKET,
         Key: media.objectKey,
+        ResponseContentDisposition: `attachment; filename="${String(media.fileName || 'download').replace(/["\r\n]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(media.fileName || 'download')}`,
+
       }),
       { expiresIn: 60 * 60 },
     );

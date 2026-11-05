@@ -155,13 +155,14 @@
 
 .media-viewer__slide {
   flex: 0 0 100%;
+  width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   scroll-snap-align: center;
   scroll-snap-stop: always;
-  padding: calc(76px + var(--safe-top)) 16px calc(96px + var(--safe-bottom));
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -174,6 +175,17 @@
   justify-content: center;
   overflow: hidden;
   touch-action: pan-x;
+}
+
+.media-viewer__document-icon {
+  width: 76px;
+  height: 76px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  margin-bottom: 12px;
 }
 
 /* Loading and error messages stay inside the active slide */
@@ -459,6 +471,69 @@
   background: #000;
 }
 
+
+/* ---------- Floating top controls ---------- */
+
+.media-viewer__topbar {
+  position: absolute;
+  top: calc(16px + var(--safe-top));
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.media-viewer__topbar > * {
+  pointer-events: auto;
+}
+
+.media-viewer__topbar.is-hidden {
+  opacity: 0;
+  transform: translateY(-12px);
+  pointer-events: none;
+}
+
+.media-viewer__top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+ /*---------- Media Header Navigation --------- */
+
+.media-viewer__control {
+  height: 42px;
+  min-width: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+}
+
+.media-viewer__counter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.media-viewer__top-actions .ant-btn-circle.media-viewer__control {
+  width: 42px;
+  min-width: 42px;
+  padding: 0;
+  border-radius: 50%;
+}
+
 /* ---------- Small screens ---------- */
 
 @media (max-width: 640px) {
@@ -476,10 +551,7 @@
     display: none;
   }
 
-  .media-viewer__slide {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
+ 
 
   .media-viewer__topbar {
     left: 8px;
@@ -500,5 +572,79 @@
   .media-viewer__image,
   .glass {
     transition: none;
+  }
+}
+
+/* ---------- Download notifications ---------- */
+
+.media-viewer__downloads {
+  position: absolute;
+  right: 20px;
+  bottom: 100px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(340px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.media-viewer__download-notification {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  background: rgba(30, 30, 35, 0.82);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  color: white;
+  pointer-events: auto;
+  animation: downloadNotificationIn 0.35s ease both;
+}
+
+.media-viewer__download-icon {
+  font-size: 22px;
+  color: #8be9a5;
+}
+
+.media-viewer__download-info {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.media-viewer__download-info strong {
+  font-size: 13px;
+}
+
+.media-viewer__download-info span {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-viewer__download-notification button {
+  border: 0;
+  background: transparent;
+  color: white;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+@keyframes downloadNotificationIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

@@ -1,7 +1,19 @@
 
 import { useEffect, useState } from 'react'
 import { Card, Flex, Image, Typography } from 'antd'
-import { FileOutlined,  CustomerServiceOutlined, PlayCircleFilled } from '@ant-design/icons'
+import { getFileIcon } from '../../utils/fileIcon'
+import {
+  FileOutlined,
+  FilePdfOutlined,
+  FileWordOutlined,
+  FileExcelOutlined,
+  FilePptOutlined,
+  FileZipOutlined,
+  FileTextOutlined,
+  CodeOutlined,
+  CustomerServiceOutlined,
+  PlayCircleFilled,
+} from '@ant-design/icons'
 import { useAuth } from '../../Authentication/Context/AuthContext'
 import { getOrFetchThumbnail } from '../../services/mediaCache.service'
 import { getMediaType } from '../../utils/mediaType'
@@ -145,9 +157,19 @@ function MediaCard({ media, onClick }) {
         >
           {mediaType === 'audio' ? (
             <CustomerServiceOutlined className="pin-card__audio-icon" />
-          ) : (
-            <FileOutlined className="pin-card__file-icon" />
-          )}
+          ) : (() => {
+            const fileConfig = getFileIcon(media.fileName)
+            const FileIcon = fileConfig.icon
+
+            return (
+              <div
+                className="pin-card__file-icon-wrapper"
+                style={{ backgroundColor: fileConfig.bg }}
+              >
+                <FileIcon style={{ color: fileConfig.color }} />
+              </div>
+            )
+          })()}
 
           <Typography.Text
             ellipsis

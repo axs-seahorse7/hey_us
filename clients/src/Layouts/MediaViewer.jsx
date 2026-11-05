@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { getFileIcon } from '../utils/fileIcon'
 import { Alert, Button, ConfigProvider, Modal, Tooltip, Typography, theme } from 'antd'
 import {
   ArrowLeftOutlined,
   DeleteOutlined,
   FileOutlined,
+  FilePdfOutlined,
   LeftOutlined,
   MinusOutlined,
   PlusOutlined,
@@ -12,6 +14,7 @@ import {
   PlayCircleFilled,
   PauseCircleFilled,
   CustomerServiceOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons'
 
 import { useMedia } from '../context/MediaContext'
@@ -32,14 +35,6 @@ const RAW_EXTENSIONS = [
   '.dng', '.raf', '.orf', '.rw2', '.pef',
 ];
 
-function isRawMedia(media) {
-  const extension = media?.fileName
-    ?.slice(media.fileName.lastIndexOf('.'))
-    .toLowerCase();
-
-  return RAW_EXTENSIONS.includes(extension);
-}
-
 function MediaViewer() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -57,6 +52,8 @@ function MediaViewer() {
     galleryImages,
     openViewer,
   } = useMedia()
+
+  const [downloadNotifications, setDownloadNotifications] = useState([])
 
   const [activeAudioUrl, setActiveAudioUrl] = useState('')
   const [audioLoading, setAudioLoading] = useState(false)
@@ -89,6 +86,8 @@ function MediaViewer() {
   const dragRef = useRef({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 })
   const touchRef = useRef({ startDistance: 0, startZoom: 1, lastTap: 0 })
 
+  const isNavigatingRef = useRef(false)
+
   // The viewer keeps only the active original as an object URL.
   // Original blobs persist in IndexedDB; speculative preloads stay as blobs there.
   const [activeOriginalUrl, setActiveOriginalUrl] = useState('')
@@ -97,7 +96,9 @@ function MediaViewer() {
   const [originalImageLoaded, setOriginalImageLoaded] = useState(false)
   const [originalError, setOriginalError] = useState('')
   const activeObjectUrlRef = useRef('')
+  const originalUrlCacheRef = useRef(new Map())
   const preloadRunRef = useRef(0)
+
 
   const revokeActiveObjectUrl = useCallback(() => {
     if (activeObjectUrlRef.current) {
@@ -235,14 +236,13 @@ function MediaViewer() {
   ])
 
  
-  useEffect(() => {
+ useEffect(() => {
     if (
       !viewerOpen ||
       !currentMedia ||
       !userId ||
       currentMediaType !== 'image'
     ) {
-      revokeActiveObjectUrl()
       setOriginalLoading(false)
       setOriginalError('')
       return
@@ -251,17 +251,26 @@ function MediaViewer() {
     let cancelled = false
     const mediaId = String(currentMedia._id)
 
-    revokeActiveObjectUrl()
+    setOriginalError('')
+
+    // Reuse an already-created object URL immediately.
+    const cachedUrl = originalUrlCacheRef.current.get(mediaId)
+
+    if (cachedUrl) {
+      setActiveOriginalMediaId(mediaId)
+      setActiveOriginalUrl(cachedUrl)
+      setOriginalLoading(false)
+      return
+    }
+
+    setActiveOriginalMediaId('')
+    setActiveOriginalUrl('')
     setOriginalLoading(false)
     setOriginalImageLoaded(false)
-    setOriginalError('')
 
     getOrFetchOriginal(userId, mediaId, 'viewed', {
       onCacheMiss: () => {
-        if (!cancelled) {
-          console.log('[CACHE MISS] Downloading original from S3:', mediaId)
-          setOriginalLoading(true)
-        }
+        if (!cancelled) setOriginalLoading(true)
       },
     })
       .then(async (blob) => {
@@ -274,38 +283,32 @@ function MediaViewer() {
         if (cancelled) return
 
         const objectUrl = URL.createObjectURL(blob)
-        activeObjectUrlRef.current = objectUrl
+
+        originalUrlCacheRef.current.set(mediaId, objectUrl)
 
         setActiveOriginalMediaId(mediaId)
         setActiveOriginalUrl(objectUrl)
-
-        console.log('[ORIGINAL READY]', {
-          mediaId,
-          size: blob.size,
-          source: 'IndexedDB or S3',
-        })
       })
-       .catch((error) => {
-        console.error('[ORIGINAL RETRY FAILED]', {
-          name: error.name,
-          message: error.message,
-          stack: error.stack,
-        });
+      .catch((error) => {
+        console.error('Original image loading failed:', error)
 
-        setOriginalLoading(false);
-        setOriginalError(`${error.name}: ${error.message}`);
+        if (!cancelled) {
+          setOriginalError('Could not load the original image.')
+        }
       })
       .finally(() => {
-        if (!cancelled) {
-          setOriginalLoading(false)
-        }
+        if (!cancelled) setOriginalLoading(false)
       })
 
     return () => {
       cancelled = true
     }
-  }, [ viewerOpen, currentMedia?._id, currentMedia?.contentType, userId, revokeActiveObjectUrl])
-
+  }, [
+    viewerOpen,
+    currentMedia?._id,
+    currentMediaType,
+    userId,
+  ])
   // After the current original has loaded, preload at most the next two images.
   // Downloads are sequential, and stale preload runs stop before starting another item.
   useEffect(() => {
@@ -342,6 +345,13 @@ function MediaViewer() {
   useEffect(() => {
     if (!viewerOpen) {
       preloadRunRef.current += 1
+
+      originalUrlCacheRef.current.forEach((url) => {
+        URL.revokeObjectURL(url)
+      })
+
+      originalUrlCacheRef.current.clear()
+
       revokeActiveObjectUrl()
     }
   }, [viewerOpen, revokeActiveObjectUrl])
@@ -455,23 +465,43 @@ function MediaViewer() {
 
     const track = trackRef.current
 
+    let scrollTimeout
+
     function handleScroll() {
-      if (isScrollingFromCode.current) return
+      if (isScrollingFromCode.current || isNavigatingRef.current) return
 
-      const slideWidth = track.clientWidth
-      if (!slideWidth) return
+      clearTimeout(scrollTimeout)
 
-      const newIndex = Math.round(track.scrollLeft / slideWidth)
-      if (newIndex === viewerIndex) return
+      scrollTimeout = setTimeout(() => {
+        const slideWidth = track.clientWidth
+        if (!slideWidth) return
 
-      if (newIndex > viewerIndex) nextMedia()
-      else previousMedia()
+        const targetIndex = Math.round(track.scrollLeft / slideWidth)
+        const difference = targetIndex - viewerIndex
+
+        if (difference === 0) return
+
+        isNavigatingRef.current = true
+
+        if (difference > 0) nextMedia()
+        else previousMedia()
+
+        // Lock navigation until the next slide has settled.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            isNavigatingRef.current = false
+          })
+        })
+      }, 100)
     }
 
     track.addEventListener('scroll', handleScroll, { passive: true })
-    return () => track.removeEventListener('scroll', handleScroll)
-  }, [viewerOpen, viewerIndex, nextMedia, previousMedia])
 
+    return () => {
+      clearTimeout(scrollTimeout)
+      track.removeEventListener('scroll', handleScroll)
+    }
+  }, [viewerOpen, viewerIndex, nextMedia, previousMedia])
   // --------------------------------------------------
   // Mouse wheel zoom (non-passive so preventDefault works)
   // --------------------------------------------------
@@ -661,6 +691,41 @@ function MediaViewer() {
     if (event.detail === 1) setControlsVisible((visible) => !visible)
   }
 
+  function addDownloadNotification(fileName) {
+    const id = `${Date.now()}-${Math.random()}`
+
+    setDownloadNotifications((previous) => [
+      ...previous,
+      { id, fileName, createdAt: new Date() },
+    ])
+  }
+
+  function dismissDownloadNotification(id) {
+    setDownloadNotifications((previous) =>
+      previous.filter((item) => item.id !== id)
+    )
+  }
+  async function handleDownload() {
+    if (!currentMedia?._id) return
+
+    try {
+      const url = await getOriginalUrl(String(currentMedia._id))
+
+      const link = document.createElement('a')
+      link.href = url
+      link.download = currentMedia.fileName || 'download'
+      
+
+      document.body.appendChild(link)
+      link.click()
+      addDownloadNotification(currentMedia.fileName || 'download')
+      console.log('Download notifications:', downloadNotifications)
+      link.remove()
+    } catch (error) {
+      console.error('Media download failed:', error)
+    }
+  }
+
   if (!viewerOpen) return null
 
   const isFirst = viewerIndex <= 0
@@ -688,10 +753,11 @@ function MediaViewer() {
         )}
 
         {/* Top bar */}
-        <header className={`media-viewer__topbar glass${hiddenClass}`}>
+        {/* Floating top controls */}
+        <header className={`media-viewer__topbar${hiddenClass}`}>
           <Button
             type="text"
-            className="glass-btn"
+            className="glass-btn media-viewer__control"
             icon={<ArrowLeftOutlined />}
             onClick={handleClose}
             aria-label="Close viewer"
@@ -699,13 +765,22 @@ function MediaViewer() {
             Back
           </Button>
 
-          <Typography.Text className="media-viewer__title" ellipsis>
-            {currentMedia?.fileName}
-          </Typography.Text>
+          <div className="media-viewer__top-actions">
+            <span className="media-viewer__counter media-viewer__control">
+              {viewerIndex + 1} / {viewerMedia.length}
+            </span>
 
-          <span className="media-viewer__counter">
-            {viewerIndex + 1} / {viewerMedia.length}
-          </span>
+            <Tooltip title="Download">
+              <Button
+                type="text"
+                shape="circle"
+                className="glass-btn media-viewer__control"
+                icon={<DownloadOutlined />}
+                onClick={handleDownload}
+                aria-label="Download file"
+              />
+            </Tooltip>
+          </div>
         </header>
 
         {/* Slides */}
@@ -715,8 +790,17 @@ function MediaViewer() {
             const isCurrent = index === viewerIndex
             const mediaId = String(media._id)
             // Non-active slides use thumbnails only; the active slide uses its downloaded original.
-            const hasActiveOriginal = isCurrent && activeOriginalMediaId === mediaId
-            const resolvedUrl = hasActiveOriginal ? activeOriginalUrl : (media.thumbnailUrl || '')
+            const cachedOriginalUrl = isCurrent
+          ? originalUrlCacheRef.current.get(mediaId)
+          : ''
+
+        const hasActiveOriginal =
+          isCurrent &&
+          (activeOriginalMediaId === mediaId || Boolean(cachedOriginalUrl))
+
+        const resolvedUrl = hasActiveOriginal
+          ? (activeOriginalUrl || cachedOriginalUrl)
+          : (media.thumbnailUrl || '')
             const isLoadingOriginal = isCurrent && originalLoading
 
             return (
@@ -871,10 +955,35 @@ function MediaViewer() {
                       }}
                     />
                   )}
-                </div>):  (
-                <div className="media-viewer__file glass">
-                  <FileOutlined />
-                  <Typography.Text>{media.fileName}</Typography.Text>
+                </div>) : (
+                  <div className="media-viewer__file glass">
+                    {(() => {
+                      const fileConfig = getFileIcon(media.fileName)
+                      const FileIcon = fileConfig.icon
+
+                      return (
+                        <div
+                          className="media-viewer__document-icon"
+                          style={{
+                            backgroundColor: fileConfig.bg,
+                            color: fileConfig.color,
+                          }}
+                        >
+                          <FileIcon />
+                        </div>
+                      )
+                    })()}
+
+                    <Typography.Text>{media.fileName}</Typography.Text>
+                    <Button
+                      shape="rounded"
+                      style={{ marginTop: '8px', backgroundColor: '#037930', color: '#fff', border: 'none' }}
+                      icon={<DownloadOutlined />}
+                      onClick={handleDownload}
+                      aria-label="Download file"
+                    >
+                      Download
+                      </Button>
                 </div>
               )}
               </div>
@@ -958,6 +1067,33 @@ function MediaViewer() {
               aria-label="Delete photo"
             />
           </Tooltip>
+        </div>
+
+        {/* Download notifications */}
+        <div className="media-viewer__downloads">
+          {downloadNotifications.map((item) => (
+            <div
+              key={item.id}
+              className="media-viewer__download-notification"
+            >
+              <span className="media-viewer__download-icon">
+                <DownloadOutlined />
+              </span>
+
+              <div className="media-viewer__download-info">
+                <strong>Download started</strong>
+                <span>{item.fileName}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => dismissDownloadNotification(item.id)}
+                aria-label="Dismiss notification"
+              >
+                ×
+              </button>
+            </div>
+          ))}
         </div>
 
         {/* Delete confirmation */}
