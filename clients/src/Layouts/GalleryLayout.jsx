@@ -13,7 +13,7 @@ import { getMediaCategory } from '../utils/mediaType'
 import { Button, ConfigProvider, Empty, Result, Skeleton, Typography, Upload, message } from 'antd';
 import { CameraOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 
-import './GalleryLayout.css';
+import './Gallerylayout.css';
 
 const { Title, Text } = Typography;
 
