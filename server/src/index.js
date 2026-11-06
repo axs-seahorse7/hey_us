@@ -7,6 +7,7 @@ import folderRouter from './routes/folder.routes.js';
 import galleryRoutes from "./routes/galary.routes.js"
 import mediaRoutes from './routes/media.routes.js';
 import privateAlbumRoutes from './routes/privateAlbum.routes.js'
+import recycleBinRoutes from './routes/recycleBin.routes.js';
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use('/api/folders', folderRouter);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/private-album', privateAlbumRoutes);
+app.use('/api/recycle-bin', recycleBinRoutes);
 
 app.use((error, _request, response, _next) => {
   console.error(error);

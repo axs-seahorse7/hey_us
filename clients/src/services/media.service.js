@@ -132,3 +132,32 @@ export async function toggleFavorite(mediaId) {
     throw error;
   }
 }
+
+
+export async function getRecycleBin() {
+  const response = await api.get('/recycle-bin');
+  return response.data.media;
+}
+
+export async function restoreMedia(mediaId) {
+  const response = await api.patch(`/recycle-bin/${mediaId}/restore`);
+  return response.data;
+}
+
+export async function permanentlyDeleteMedia(mediaId) {
+  const response = await api.delete(`/recycle-bin/${mediaId}`);
+  return response.data;
+}
+
+export async function emptyRecycleBin() {
+  const response = await api.delete('/recycle-bin');
+  return response.data;
+}
+
+export async function getRecycleBinOriginalUrl(mediaId) {
+  const response = await api.get(
+    `/recycle-bin/${mediaId}/original-url`
+  );
+
+  return response.data.url;
+}

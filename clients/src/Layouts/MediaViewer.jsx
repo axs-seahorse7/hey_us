@@ -17,18 +17,16 @@ import {
   DownloadOutlined,
   HeartOutlined,
   HeartFilled ,
+  UndoOutlined ,
 } from '@ant-design/icons'
 
 import { useMedia } from '../context/MediaContext'
 import { useAuth } from '../Authentication/Context/AuthContext'
 import { usePrivateAlbum } from '../context/PrivateAlbumContext'
-import {
-  deletePrivateMedia,
-  getPrivateOriginalUrl,
-} from '../services/privateAlbum.service'
+import { deletePrivateMedia, getPrivateOriginalUrl} from '../services/privateAlbum.service'
 
 import { getOrFetchOriginal, markOriginalViewed, removeCachedOriginal, removeCachedThumbnail } from '../services/mediaCache.service'
-import { deleteMedia, getOriginalUrl, toggleFavorite  } from '../services/media.service'
+import { deleteMedia, getOriginalUrl, getRecycleBinOriginalUrl, toggleFavorite, permanentlyDeleteMedia, restoreMedia,} from '../services/media.service';
 import { getMediaType } from '../utils/mediaType'
 
 import './MediaViewer.css'
@@ -65,6 +63,14 @@ function MediaViewer() {
 
 const { privateToken } = usePrivateAlbum()
 const isPrivateViewer = viewerSource === 'private'
+const isRecycleBinViewer = viewerSource === 'recycle-bin';
+const [restoring, setRestoring] = useState(false);
+
+console.log('[MediaViewer]', {
+  viewerSource,
+  isPrivateViewer,
+  isRecycleBinViewer,
+});
 
   const [downloadNotifications, setDownloadNotifications] = useState([])
   const [favoriteUpdating, setFavoriteUpdating] = useState(false)
@@ -83,17 +89,21 @@ const isPrivateViewer = viewerSource === 'private'
     async (mediaId) => {
       if (isPrivateViewer) {
         if (!privateToken) {
-          throw new Error('Private Album is locked. Unlock it again.')
+          throw new Error('Private Album is locked. Unlock it again.');
         }
 
-        const result = await getPrivateOriginalUrl(mediaId, privateToken)
-        return result.url
+        const result = await getPrivateOriginalUrl(mediaId, privateToken);
+        return result.url;
       }
 
-      return getOriginalUrl(mediaId)
+      if (isRecycleBinViewer) {
+        return getRecycleBinOriginalUrl(mediaId);
+      }
+
+      return getOriginalUrl(mediaId);
     },
-    [isPrivateViewer, privateToken],
-  )
+    [isPrivateViewer, isRecycleBinViewer, privateToken],
+  );
 
   const [activeVideoUrl, setActiveVideoUrl] = useState('')
   const [videoLoading, setVideoLoading] = useState(false)
@@ -328,10 +338,11 @@ const isPrivateViewer = viewerSource === 'private'
     setOriginalImageLoaded(false)
 
     const loadOriginal = async () => {
-      if (isPrivateViewer) {
-        if (!privateToken) {
+      if (isPrivateViewer || isRecycleBinViewer) {
+        if (isPrivateViewer && !privateToken) {
           throw new Error('Private Album is locked.')
         }
+
 
         const signedUrl = await getViewerOriginalUrl(mediaId)
         const response = await fetch(signedUrl)
@@ -386,6 +397,7 @@ const isPrivateViewer = viewerSource === 'private'
     isPrivateViewer,
     privateToken,
     getViewerOriginalUrl,
+    isRecycleBinViewer,
   ])
 
   // After the current original has loaded, preload at most the next two images.
@@ -467,18 +479,24 @@ const isPrivateViewer = viewerSource === 'private'
   }, [id, viewerOpen, closeViewer, galleryImages, openViewer])
 
   const handleClose = useCallback(() => {
-    if (isPrivateViewer) {
-      closeViewer()
-      return
+    if (isPrivateViewer || isRecycleBinViewer) {
+      closeViewer();
+      return;
     }
 
     if (window.location.pathname.includes('/folders/')) {
-      closeViewer()
-      return
+      closeViewer();
+      return;
     }
 
-    navigate(location.state?.from || '/gallery')
-  }, [isPrivateViewer, navigate, location.state, closeViewer])
+    navigate(location.state?.from || '/gallery');
+  }, [
+    isPrivateViewer,
+    isRecycleBinViewer,
+    navigate,
+    location.state,
+    closeViewer,
+  ]);
 
   // --------------------------------------------------
   // Zoom helpers
@@ -735,50 +753,80 @@ const isPrivateViewer = viewerSource === 'private'
     if (!deleting) setDeleteConfirmOpen(false)
   }
 
+  
   async function handleDelete() {
-    if (!currentMedia || deleting) return
+    if (!currentMedia || deleting) return;
 
     try {
-      setDeleting(true)
-      setDeleteError('')
+      setDeleting(true);
+      setDeleteError('');
 
-      const mediaId = String(currentMedia._id)
+      const mediaId = String(currentMedia._id);
 
       if (isPrivateViewer) {
         if (!privateToken) {
-          throw new Error('Private Album is locked. Unlock it again.')
+          throw new Error('Private Album is locked. Unlock it again.');
         }
 
-        await deletePrivateMedia(mediaId, privateToken)
+        await deletePrivateMedia(mediaId, privateToken);
+      } else if (isRecycleBinViewer) {
+        await permanentlyDeleteMedia(mediaId);
       } else {
-        await deleteMedia(mediaId)
-
-        if (userId) {
-          await Promise.all([
-            removeCachedOriginal(userId, mediaId),
-            removeCachedThumbnail(userId, mediaId),
-          ]).catch((error) => {
-            console.warn('Could not remove deleted media from local cache:', error)
-          })
-        }
+        await deleteMedia(mediaId);
       }
 
-      removeViewerMedia(mediaId)
-      setDeleteConfirmOpen(false)
+      // Remove cached files after successful deletion.
+      if (userId) {
+        await Promise.all([
+          removeCachedOriginal(userId, mediaId),
+          removeCachedThumbnail(userId, mediaId),
+        ]).catch((error) => {
+          console.warn('Could not remove media from local cache:', error);
+        });
+      }
 
+      removeViewerMedia(mediaId);
+      setDeleteConfirmOpen(false);
+
+      message.success(
+        isRecycleBinViewer
+          ? 'Media permanently deleted.'
+          : 'Media deleted successfully.'
+      );
     } catch (error) {
-      console.error('Failed to delete media:', error)
+      console.error('Failed to delete media:', error);
 
       setDeleteError(
         error.response?.data?.message ||
         error.message ||
-        'Failed to delete media.',
-      )
+        'Failed to delete media.'
+      );
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
   }
 
+
+  async function handleRestore() {
+    if (!currentMedia?._id || restoring) return;
+
+    try {
+      setRestoring(true);
+
+      const mediaId = String(currentMedia._id);
+      await restoreMedia(mediaId);
+      removeViewerMedia(mediaId);
+      message.success('Media restored successfully.');
+    } catch (error) {
+      console.error('Restore media failed:', error);
+
+      message.error(
+        error.response?.data?.message || 'Failed to restore media.'
+      );
+    } finally {
+      setRestoring(false);
+    }
+  }
   // --------------------------------------------------
   // Toggle controls
   // --------------------------------------------------
@@ -806,7 +854,7 @@ const isPrivateViewer = viewerSource === 'private'
     if (!currentMedia?._id) return
 
     try {
-      const url = await getOriginalUrl(String(currentMedia._id))
+      const url = await getViewerOriginalUrl(String(currentMedia._id))
 
       const link = document.createElement('a')
       link.href = url
@@ -954,8 +1002,8 @@ const isPrivateViewer = viewerSource === 'private'
 
                               let blob
 
-                              if (isPrivateViewer) {
-                                if (!privateToken) {
+                              if (isPrivateViewer || isRecycleBinViewer) {
+                                if (isPrivateViewer && !privateToken) {
                                   throw new Error('Private Album is locked.')
                                 }
 
@@ -1188,7 +1236,7 @@ const isPrivateViewer = viewerSource === 'private'
 
           <span className="media-viewer__divider" />
 
-          <Tooltip title={currentMedia?.isFavorite ? 'Remove from favourites' : 'Add to favourites'}>
+          {!isRecycleBinViewer && (<Tooltip title={currentMedia?.isFavorite ? 'Remove from favourites' : 'Add to favourites'}>
             <Button
               type="text"
               shape="circle"
@@ -1202,9 +1250,30 @@ const isPrivateViewer = viewerSource === 'private'
               loading={favoriteUpdating}
               aria-label="Toggle favourite"
             />
-          </Tooltip>
+          </Tooltip>)}
 
-          <Tooltip title="Delete">
+          {isRecycleBinViewer && (
+            <Tooltip title="Restore to original location">
+              <Button
+                type="text"
+                shape="circle"
+                className="glass-btn"
+                icon={<UndoOutlined />}
+                onClick={handleRestore}
+                loading={restoring}
+                disabled={restoring}
+                aria-label="Restore media"
+              />
+            </Tooltip>
+          )}
+
+          <Tooltip
+            title={
+              isPrivateViewer || isRecycleBinViewer
+                ? 'Delete Permanently'
+                : 'Move to Recycle Bin'
+            }
+          >
             <Button
               type="text"
               shape="circle"
@@ -1213,7 +1282,7 @@ const isPrivateViewer = viewerSource === 'private'
               icon={<DeleteOutlined />}
               onClick={openDeleteConfirm}
               disabled={deleting}
-              aria-label="Delete photo"
+              aria-label="Delete media"
             />
           </Tooltip>
         </div>
@@ -1248,24 +1317,36 @@ const isPrivateViewer = viewerSource === 'private'
         {/* Delete confirmation */}
         <Modal
           open={deleteConfirmOpen}
-          title="Delete this photo?"
+          title={
+            isRecycleBinViewer || isPrivateViewer
+              ? 'Delete permanently?'
+              : 'Move to Recycle Bin?'
+          }
           centered
           width={360}
           onCancel={closeDeleteConfirm}
           maskClosable={!deleting}
           closable={false}
           wrapClassName="media-viewer__modal"
-          okText="Delete"
+          okText={
+            isRecycleBinViewer || isPrivateViewer
+              ? 'Delete permanently'
+              : 'Move to Recycle Bin'
+          }
           cancelText="Cancel"
           okButtonProps={{ danger: true, loading: deleting }}
           cancelButtonProps={{ disabled: deleting }}
           onOk={handleDelete}
         >
           <p className="media-viewer__modal-text">
-            This photo will be permanently deleted from your gallery.
+            {isRecycleBinViewer || isPrivateViewer
+              ? 'This file will be permanently deleted from your account and cannot be recovered.'
+              : 'This file will be moved to the Recycle Bin. You can restore it later.'}
           </p>
 
-          {deleteError && <Alert type="error" showIcon message={deleteError} />}
+          {deleteError && (
+            <Alert type="error" showIcon message={deleteError} />
+          )}
         </Modal>
       </div>
     </ConfigProvider>

@@ -3,7 +3,6 @@ import mongoose from 'mongoose';
 import {
   PutObjectCommand,
   GetObjectCommand,
-  DeleteObjectCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 
@@ -43,6 +42,7 @@ export async function listFolderMedia(request, response, next) {
         folder: folder._id,
         status: 'uploaded',
         isPrivate: { $ne: true },
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     })
     .sort({ createdAt: -1 })
     .lean();
@@ -70,6 +70,7 @@ export const getMedia = async (req, res) => {
       owner: req.user.id,
       status: 'uploaded',
       isPrivate: { $ne: true },
+      $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     });
 
     if (!media) {
@@ -252,6 +253,7 @@ export async function completeUpload(request, response, next) {
       _id: mediaId,
       owner: request.user.id,
       isPrivate: { $ne: true },
+      $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     });
 
     if (!media) {
@@ -423,6 +425,7 @@ export const getOriginalUrl = async (req, res) => {
       owner: req.user.id,
       status: 'uploaded',
       isPrivate: { $ne: true },
+      $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     }).select('objectKey fileName');
 
     if (!media) {
@@ -463,6 +466,7 @@ export const getThumbnailUrl = async (req, res) => {
       owner: req.user.id,
       status: 'uploaded',
       isPrivate: { $ne: true },
+      $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     }).select('thumbnailObjectKey');
 
     if (!media) {
@@ -496,6 +500,7 @@ export const getThumbnailUrl = async (req, res) => {
   }
 };
 
+
 export async function deleteMedia(request, response, next) {
   try {
     const { mediaId } = request.params;
@@ -506,12 +511,23 @@ export async function deleteMedia(request, response, next) {
       });
     }
 
-    const media = await Media.findOne({
-      _id: mediaId,
-      owner: request.user.id,
-      status: 'uploaded',
-      isPrivate: { $ne: true },
-    });
+    const media = await Media.findOneAndUpdate(
+      {
+        _id: mediaId,
+        owner: request.user.id,
+        status: 'uploaded',
+        isPrivate: { $ne: true },
+        deletedAt: null,
+      },
+      {
+        $set: {
+          deletedAt: new Date(),
+        },
+      },
+      {
+        new: true,
+      }
+    );
 
     if (!media) {
       return response.status(404).json({
@@ -519,43 +535,16 @@ export async function deleteMedia(request, response, next) {
       });
     }
 
-    const bucket = process.env.AWS_S3_BUCKET;
-
-    if (!bucket) {
-      throw new Error('AWS_S3_BUCKET is not configured.');
-    }
-
-    // Delete original and generated thumbnail from S3.
-    const objectsToDelete = [
-      media.objectKey,
-      media.thumbnailObjectKey,
-    ].filter(Boolean);
-
-    await Promise.all(
-      objectsToDelete.map((key) =>
-        s3.send(
-          new DeleteObjectCommand({
-            Bucket: bucket,
-            Key: key,
-          })
-        )
-      )
-    );
-
-    // Remove MongoDB metadata only after S3 deletion succeeds.
-    await Media.deleteOne({
-      _id: media._id,
-      owner: request.user.id,
-    });
-
     return response.json({
-      message: 'Media and generated assets deleted successfully.',
+      message: 'Media moved to Recycle Bin.',
       mediaId: media._id,
+      deletedAt: media.deletedAt,
     });
   } catch (error) {
-    console.error('Delete media error:', error);
+    console.error('Move media to Recycle Bin error:', error);
     return next(error);
   }
-};
+}
+
 
 

@@ -9,6 +9,7 @@ import FolderView from './Layouts/FolderView'
 import ProtectedRoute from './Authentication/ProtectedRoute'
 import MediaCategoryLayout from './Layouts/MediaCategoryLayout'
 import PrivateAlbumLayout from './Layouts/PrivateAlbumLayout'
+import RecycleBinLayout from './Layouts/RecycleBinLayout'
 
 const router = createBrowserRouter([
   {path: '/', element: <Login />},
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       { path: '/videos', element: <MediaCategoryLayout category="videos" title="Videos" /> },
       { path: '/notes', element: <MediaCategoryLayout category="notes" title="Notes" /> },
       { path: '/files', element: <MediaCategoryLayout category="files" title="Files" /> },
+      { path: '/recycle-bin', element: <RecycleBinLayout /> },
     ]
   }
 ])

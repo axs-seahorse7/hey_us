@@ -94,7 +94,7 @@ export function MediaProvider({ children }) {
         return updated
       })
 
-      if (viewerSource === 'private') {
+      if (viewerSource === 'private' || viewerSource === 'recycle-bin') {
         onViewerMediaRemoved?.(id)
       }
     },
