@@ -15,9 +15,7 @@ const app = express();
 
 // Allowed frontend origins
 const allowedOrigins = [
-  'http://localhost:5173',
-  'http://10.92.243.36:5173',
-  'http://192.168.19.117:5173',
+  'https://hey-my-june.vercel.app',
   ...(process.env.FRONTEND_URL || '')
     .split(',')
     .map(origin => origin.trim())
