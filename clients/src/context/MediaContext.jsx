@@ -9,6 +9,7 @@ export function MediaProvider({ children }) {
   const [viewerIndex, setViewerIndex] = useState(0)
   const [viewerSource, setViewerSource] = useState('gallery')
   const [galleryImages, setGalleryImages] = useState([])
+  const [selectedMediaIds, setSelectedMediaIds] = useState(new Set())
   const [onViewerMediaRemoved, setOnViewerMediaRemoved] = useState(null)
 
   const openViewer = useCallback(
@@ -101,6 +102,35 @@ export function MediaProvider({ children }) {
     [viewerSource, onViewerMediaRemoved],
   )
 
+  const toggleMediaSelection = useCallback((mediaId) => {
+    const id = String(mediaId)
+
+    setSelectedMediaIds((current) => {
+      const updated = new Set(current)
+
+      if (updated.has(id)) {
+        updated.delete(id)
+      } else {
+        updated.add(id)
+      }
+
+      return updated
+    })
+  }, [])
+
+  const selectAllMedia = useCallback((mediaIds) => {
+    setSelectedMediaIds(new Set(mediaIds.map(String)))
+  }, [])
+
+  const clearMediaSelection = useCallback(() => {
+    setSelectedMediaIds(new Set())
+  }, [])
+
+  const isMediaSelected = useCallback(
+    (mediaId) => selectedMediaIds.has(String(mediaId)),
+    [selectedMediaIds],
+  )
+
   const currentMedia = viewerMedia[viewerIndex] ?? null
 
   return (
@@ -119,6 +149,11 @@ export function MediaProvider({ children }) {
         removeViewerMedia,
         galleryImages,
         setGalleryImages,
+        selectedMediaIds,
+        toggleMediaSelection,
+        selectAllMedia,
+        clearMediaSelection,
+        isMediaSelected,
       }}
     >
       {children}

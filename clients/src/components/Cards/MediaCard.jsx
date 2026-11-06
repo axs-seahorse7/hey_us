@@ -1,38 +1,16 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card, Flex, Image, Typography } from 'antd'
 import { getFileIcon } from '../../utils/fileIcon'
 import {
-  FileOutlined,
-  FilePdfOutlined,
-  FileWordOutlined,
-  FileExcelOutlined,
-  FilePptOutlined,
-  FileZipOutlined,
-  FileTextOutlined,
-  CodeOutlined,
   CustomerServiceOutlined,
   PlayCircleFilled,
 } from '@ant-design/icons'
 import { useAuth } from '../../Authentication/Context/AuthContext'
 import { getOrFetchThumbnail } from '../../services/mediaCache.service'
 import { getMediaType } from '../../utils/mediaType'
+import { useMedia } from '../../context/MediaContext'
 import './MediaCard.css'
-
-
-const RAW_EXTENSIONS = new Set([
-  '.arw', '.cr2', '.cr3', '.nef',
-  '.dng', '.raf', '.orf', '.rw2', '.pef',
-]);
-
-function isRawMedia(media) {
-  const extension = media?.fileName
-    ?.match(/\.[^.]+$/)?.[0]
-    ?.toLowerCase();
-
-  return RAW_EXTENSIONS.has(extension);
-}
-
 function MediaCard({ media, onClick }) {
   const { user } = useAuth()
   const userId = user?.user?._id
@@ -43,61 +21,117 @@ function MediaCard({ media, onClick }) {
 
   const [thumbnailSrc, setThumbnailSrc] = useState(null)
 
-  
-useEffect(() => {
-  if (!hasThumbnail || !userId || !media._id || !media.thumbnailUrl) {
-    setThumbnailSrc(null)
-    return
-  }
+  const {
+    isMediaSelected,
+    toggleMediaSelection,
+    selectedMediaIds,
+  } = useMedia()
 
-  let active = true
-  let objectUrl = null
+  const isSelected = isMediaSelected(media._id)
+  const selectionMode = selectedMediaIds.size > 0
 
-  setThumbnailSrc(null)
+  const longPressTimer = useRef(null)
+  const didLongPress = useRef(false)
 
-  async function loadThumbnail() {
-    try {
-      const blob = media.isPrivate
-        ? await fetch(media.thumbnailUrl).then((response) => {
-            if (!response.ok) {
-              throw new Error('Private thumbnail request failed')
-            }
-            return response.blob()
-          })
-        : await getOrFetchThumbnail(
-            userId,
-            String(media._id),
-            media.thumbnailUrl,
-          )
-
-      if (!active) return
-
-      objectUrl = URL.createObjectURL(blob)
-      setThumbnailSrc(objectUrl)
-    } catch (error) {
-      console.warn('[THUMBNAIL LOAD FAILED]', media._id, error)
+  // Load thumbnail
+  useEffect(() => {
+    if (!hasThumbnail || !userId || !media._id || !media.thumbnailUrl) {
+      setThumbnailSrc(null)
+      return
     }
+
+    let active = true
+    let objectUrl = null
+
+    setThumbnailSrc(null)
+
+    async function loadThumbnail() {
+      try {
+        const blob = media.isPrivate
+          ? await fetch(media.thumbnailUrl).then((response) => {
+              if (!response.ok) {
+                throw new Error('Private thumbnail request failed')
+              }
+              return response.blob()
+            })
+          : await getOrFetchThumbnail(
+              userId,
+              String(media._id),
+              media.thumbnailUrl,
+            )
+
+        if (!active) return
+
+        objectUrl = URL.createObjectURL(blob)
+        setThumbnailSrc(objectUrl)
+      } catch (error) {
+        console.warn('[THUMBNAIL LOAD FAILED]', media._id, error)
+      }
+    }
+
+    loadThumbnail()
+
+    return () => {
+      active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [ userId, media._id, media.thumbnailUrl, media.isPrivate, hasThumbnail])
+
+  // Clear long-press timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(longPressTimer.current)
+  }, [])
+
+  // Long-press selection
+  function handlePointerDown(event) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+
+    clearTimeout(longPressTimer.current)
+    didLongPress.current = false
+
+    longPressTimer.current = setTimeout(() => {
+      didLongPress.current = true
+      if (!isSelected) {
+        toggleMediaSelection(media._id)
+      }
+    }, 450)
   }
 
-  loadThumbnail()
-
-  return () => {
-    active = false
-    if (objectUrl) URL.revokeObjectURL(objectUrl)
+  function handlePointerEnd() {
+    clearTimeout(longPressTimer.current)
   }
-}, [
-  userId,
-  media._id,
-  media.thumbnailUrl,
-  media.isPrivate,
-  hasThumbnail,
-])
 
+  // Prevent browser native image context menu
+  function preventNativeMenu(event) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
 
+  // Card click behavior
+  function handleCardClick() {
+    if (didLongPress.current) {
+      didLongPress.current = false
+      return
+    }
+
+    if (selectionMode) {
+      toggleMediaSelection(media._id)
+      return
+    }
+
+    onClick?.(media)
+  }
+
+  // Keyboard accessibility
   function handleKeyDown(event) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      onClick?.(media)
+
+      if (selectionMode) {
+        toggleMediaSelection(media._id)
+      } else {
+        onClick?.(media)
+      }
     }
   }
 
@@ -105,23 +139,54 @@ useEffect(() => {
     <Card
       hoverable
       variant="borderless"
-      className="pin-card"
+      className={`pin-card ${isSelected ? 'pin-card--selected' : ''}`}
       styles={{ body: { padding: 0 } }}
       role="button"
       tabIndex={0}
       aria-label={`Open ${media.fileName || 'media'}`}
-      onClick={() => onClick?.(media)}
       onKeyDown={handleKeyDown}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerEnd}
+      onPointerLeave={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      onClick={handleCardClick}
+      onContextMenu={preventNativeMenu}
+      onDragStart={(event) => event.preventDefault()}
     >
+      {/* Selection indicator */}
+      {(selectionMode || isSelected) && (
+        <div
+          className={`pin-card__selection-indicator ${
+            isSelected ? 'is-selected' : ''
+          }`}
+          role="checkbox"
+          aria-checked={isSelected}
+          tabIndex={0}
+          onClick={(event) => {
+            event.stopPropagation()
+            toggleMediaSelection(media._id)
+          }}
+          onContextMenu={preventNativeMenu}
+        >
+          {isSelected ? '✓' : ''}
+        </div>
+      )}
+
+      {/* Image and video preview */}
       {hasThumbnail ? (
         <>
-          <div className="pin-card__media-preview">
+          <div
+            className="pin-card__media-preview"
+            onContextMenu={preventNativeMenu}
+          >
             {thumbnailSrc ? (
               <Image
                 src={thumbnailSrc}
                 alt={media.fileName}
                 preview={false}
                 rootClassName="pin-card__image"
+                onContextMenu={preventNativeMenu}
+                draggable={false}
               />
             ) : (
               <div className="pin-card__image-placeholder" />
@@ -146,6 +211,7 @@ useEffect(() => {
           )}
         </>
       ) : (
+        /* Other file types */
         <Flex
           vertical
           align="center"

@@ -1,72 +1,282 @@
-/* ==================================================
-   Media grid — glass date pill (layout handled by antd Masonry)
-   ================================================== */
 
-.pin-date.ant-typography {
-  align-self: flex-start;
-  margin: 0 0 0 2px;
-  padding: 6px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 1.4;
-  color: rgba(28, 28, 30, 0.8);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.4));
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 999px;
+/* =========================================
+   COMPACT iOS GLASS ACTION DOCK
+========================================= */
+
+.bulk-selection-toolbar {
+  position: fixed;
+  z-index: 1000;
+
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+
+  width: min(440px, calc(100% - 32px));
+  padding: 20px 16px 13px;
+
+  display: flex;
+  align-items: center;
+
+  background: rgba(248, 249, 255, 0.68);
+
+  -webkit-backdrop-filter: blur(35px) saturate(190%);
+  backdrop-filter: blur(35px) saturate(190%);
+
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 25px;
+
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 4px 14px rgba(31, 38, 135, 0.1);
+    0 12px 40px rgba(0, 0, 0, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  transform: translate(-50%, 100px) scale(0.95);
+
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.3s ease,
+    visibility 0.4s ease;
 }
+
+.bulk-selection-toolbar--visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+
+  transform: translate(-50%, 0) scale(1);
+}
+
+/* =========================================
+   FLOATING SELECTION COUNT
+========================================= */
+
+.bulk-toolbar__count {
+  position: absolute;
+  top: -17px;
+  left: 16px;
+
+  min-width: 42px;
+  height: 42px;
+  padding: 0 11px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 15px;
+
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+
+  background: linear-gradient(
+    145deg,
+    #65ceff,
+    #087aff
+  );
+
+  border: 1px solid rgba(255, 255, 255, 0.7);
+
+  box-shadow:
+    0 6px 18px rgba(0, 122, 255, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.55);
+
+  z-index: 2;
+}
+
+/* =========================================
+   CLOSE BUTTON
+========================================= */
+
+.bulk-toolbar__close.ant-btn {
+  position: absolute;
+  top: -17px;
+  right: 15px;
+
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #60636b;
+  background: rgba(245, 245, 250, 0.88);
+
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.bulk-toolbar__close.ant-btn:hover {
+  color: #1677ff;
+  background: #fff;
+}
+
+/* =========================================
+   ACTION GRID
+========================================= */
+
+.bulk-toolbar__actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+
+  width: 100%;
+}
+
+/* Each button: icon above, label below */
+
+.bulk-action.ant-btn {
+  width: 100%;
+  height: 66px;
+  min-width: 0;
+  padding: 8px 4px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+
+  color: #34363d;
+
+  background: rgba(255, 255, 255, 0.5);
+
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 19px;
+
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+
+  box-shadow:
+    0 3px 9px rgba(0, 0, 0, 0.045),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9);
+
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.bulk-action.ant-btn .anticon {
+  font-size: 20px;
+  margin: 0;
+}
+
+.bulk-action.ant-btn > span:last-child {
+  margin: 0;
+}
+
+.bulk-action.ant-btn:hover {
+  color: #1677ff;
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-2px);
+}
+
+.bulk-action.ant-btn:active {
+  transform: scale(0.93);
+}
+
+/* Delete */
+
+.bulk-action--delete.ant-btn {
+  color: #e5484d;
+  background: rgba(255, 69, 58, 0.09);
+  border-color: rgba(255, 69, 58, 0.16);
+}
+
+/* Share */
+
+.bulk-action--share.ant-btn {
+  color: #fff;
+
+  background: linear-gradient(
+    145deg,
+    #5ac8fa,
+    #087aff
+  );
+
+  border-color: transparent;
+
+  box-shadow:
+    0 5px 14px rgba(0, 122, 255, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.45);
+}
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 600px) {
+  .bulk-selection-toolbar {
+    width: calc(100% - 28px);
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+
+    padding: 18px 12px 11px;
+    border-radius: 23px;
+  }
+
+  .bulk-toolbar__actions {
+    gap: 8px;
+  }
+
+  .bulk-action.ant-btn {
+    height: 61px;
+    border-radius: 17px;
+    font-size: 10px;
+  }
+
+  .bulk-action.ant-btn .anticon {
+    font-size: 19px;
+  }
+}
+
+/* =========================================
+   DARK MODE
+========================================= */
 
 @media (prefers-color-scheme: dark) {
-  .pin-date.ant-typography {
-    color: rgba(255, 255, 255, 0.88);
-    background: linear-gradient(135deg, rgba(60, 60, 67, 0.6), rgba(44, 44, 48, 0.4));
-    border-color: rgba(255, 255, 255, 0.16);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.2),
-      0 4px 14px rgba(0, 0, 0, 0.4);
+  .bulk-selection-toolbar {
+    background: rgba(35, 35, 43, 0.78);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .bulk-toolbar__close.ant-btn {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .bulk-action.ant-btn {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .bulk-action--delete.ant-btn {
+    color: #ff6961;
+    background: rgba(255, 69, 58, 0.14);
+  }
+
+  .bulk-action--share.ant-btn {
+    color: #fff;
+    background: linear-gradient(145deg, #5ac8fa, #087aff);
   }
 }
 
+/* =========================================
+   ACCESSIBILITY
+========================================= */
 
-.pin-groups .pin-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)); /* mobile: always 2 */
-  gap: 8px;
-  width: 100%;
-  align-items: start;
-}
-
-.pin-groups .pin-grid > * {
-  min-width: 0;
-  max-width: 100%;
-}
-
-@media (min-width: 576px) {
-  .pin-groups .pin-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-  }
-}
-
-@media (min-width: 768px) {
-  .pin-groups .pin-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1200px) {
-  .pin-groups .pin-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1600px) {
-  .pin-groups .pin-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+@media (prefers-reduced-motion: reduce) {
+  .bulk-selection-toolbar,
+  .bulk-action.ant-btn {
+    transition: none;
   }
 }
