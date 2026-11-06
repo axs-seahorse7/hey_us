@@ -2,12 +2,12 @@ import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 import mongoose from 'mongoose';
-import authRouter from './routes/auth.routes.js';
-import folderRouter from './routes/folder.routes.js';
-import galleryRoutes from "./routes/galary.routes.js"
-import mediaRoutes from './routes/media.routes.js';
-import privateAlbumRoutes from './routes/privateAlbum.routes.js'
-import recycleBinRoutes from './routes/recycleBin.routes.js';
+import authRouter from '../routes/auth.routes.js';
+import folderRouter from '../routes/folder.routes.js';
+import galleryRoutes from "../routes/galary.routes.js"
+import mediaRoutes from '../routes/media.routes.js';
+import privateAlbumRoutes from '../routes/privateAlbum.routes.js'
+import recycleBinRoutes from '../routes/recycleBin.routes.js';
 
 const app = express();
 
