@@ -6,14 +6,13 @@ import authRouter from './routes/auth.routes.js';
 import folderRouter from './routes/folder.routes.js';
 import galleryRoutes from "./routes/galary.routes.js"
 import mediaRoutes from './routes/media.routes.js';
+import privateAlbumRoutes from './routes/privateAlbum.routes.js'
 
 const app = express();
 
 const allowedOrigin = [
-  'https://hoppscotch.io',
   'http://localhost:5173',
-  'http://10.134.64.36:5173',
-  'http://10.92.243.36:5173',
+  'http://192.168.19.117:5173',
 ];
 
 app.use(
@@ -37,7 +36,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/folders', folderRouter);
 app.use('/api/gallery', galleryRoutes);
 app.use('/api/media', mediaRoutes);
-
+app.use('/api/private-album', privateAlbumRoutes);
 
 app.use((error, _request, response, _next) => {
   console.error(error);

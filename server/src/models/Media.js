@@ -79,6 +79,12 @@ const mediaSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    
+    isPrivate: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
 
     deletedAt: {
       type: Date,

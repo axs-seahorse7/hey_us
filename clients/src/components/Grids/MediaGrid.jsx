@@ -1,18 +1,23 @@
 import { useNavigate } from 'react-router-dom'
-import { Flex, Masonry, Typography } from 'antd'
+import { Flex, Grid, Masonry, Typography } from 'antd'
 import MediaCard from '../Cards/MediaCard'
 import './MediaGrid.css'
 
-// Pinterest-style: more columns on wider screens, every card keeps its own height
 const COLUMNS = { xs: 2, sm: 3, md: 4, lg: 5, xxl: 6 }
 const GUTTER = { xs: 8, sm: 12, md: 14 }
 
-function MediaGrid({ groupedMedia = [], onMediaClick }) {
+function MediaGrid({
+  groupedMedia = [],
+  onMediaClick,
+  layout = 'masonry',
+}) {
   const navigate = useNavigate()
+  const screens = Grid.useBreakpoint() // must stay above the early return
 
-  if (!groupedMedia.length) {
-    return null
-  }
+  const columnCount = screens.xxl ? 6 : screens.lg ? 5 : screens.md ? 4 : screens.sm ? 3 : 2
+  const gridGap = screens.sm ? 12 : 8
+
+  if (!groupedMedia.length) return null
 
   function handleClick(data) {
     if (onMediaClick) {
@@ -30,15 +35,34 @@ function MediaGrid({ groupedMedia = [], onMediaClick }) {
             {formattedDate}
           </Typography.Title>
 
-          <Masonry
-            fresh /* re-balance columns as images finish loading */
-            columns={COLUMNS}
-            gutter={GUTTER}
-            items={images.map((item) => ({ key: item._id, data: item }))}
-            itemRender={({ data }) => (
-              <MediaCard media={data} onClick={() => handleClick(data)} />
-            )}
-          />
+          {layout === 'grid' ? (
+            <div
+              className="pin-grid"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+                gap: gridGap,
+                width: '100%',
+                alignItems: 'start',
+              }}
+            >
+              {images.map((item) => (
+                <div key={item._id} style={{ minWidth: 0 }}>
+                  <MediaCard media={item} onClick={() => handleClick(item)} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Masonry
+              fresh
+              columns={COLUMNS}
+              gutter={GUTTER}
+              items={images.map((item) => ({ key: item._id, data: item }))}
+              itemRender={({ data }) => (
+                <MediaCard media={data} onClick={() => handleClick(data)} />
+              )}
+            />
+          )}
         </Flex>
       ))}
     </Flex>

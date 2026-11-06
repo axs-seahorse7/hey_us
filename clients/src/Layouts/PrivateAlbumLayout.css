@@ -1,0 +1,98 @@
+.private-album-page {
+  min-height: calc(100vh - 100px);
+  padding: 28px;
+}
+
+.private-album-state {
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.private-album-auth-card {
+  width: min(100%, 430px);
+  margin: 70px auto;
+  border-radius: 22px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+}
+
+.private-album-auth-icon {
+  width: 76px;
+  height: 76px;
+  margin: 8px auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #a78bfa, #6d28d9);
+  color: white;
+  font-size: 32px;
+}
+
+.private-album-type-select {
+  width: 100%;
+  margin-top: 24px;
+  text-align: left;
+}
+
+.private-album-form {
+  margin-top: 28px;
+  text-align: left;
+}
+
+.private-album-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.private-album-actions {
+  display: flex;
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .private-album-page {
+    padding: 16px;
+  }
+
+  .private-album-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .private-album-actions {
+    width: 100%;
+  }
+
+  .private-album-actions button {
+    flex: 1;
+  }
+
+
+}
+
+.private-album-form input[inputmode="numeric"] {
+  letter-spacing: 1px;
+}
+
+.private-album-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .private-album-actions {
+    width: 100%;
+  }
+
+  .private-album-actions button {
+    flex: 1;
+  }
+}

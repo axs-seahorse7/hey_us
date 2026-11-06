@@ -43,58 +43,56 @@ function MediaCard({ media, onClick }) {
 
   const [thumbnailSrc, setThumbnailSrc] = useState(null)
 
-  useEffect(() => {
-    if (!hasThumbnail || !userId || !media._id) {
-      setThumbnailSrc(null)
-      return
-    }
-
-    let active = true
-    let objectUrl = null
-
+  
+useEffect(() => {
+  if (!hasThumbnail || !userId || !media._id || !media.thumbnailUrl) {
     setThumbnailSrc(null)
+    return
+  }
 
-    async function loadThumbnail() {
-      try {
-        const blob = await getOrFetchThumbnail(
-          userId,
-          String(media._id),
-          media.thumbnailUrl,
-        )
+  let active = true
+  let objectUrl = null
 
-        if (!active) return
+  setThumbnailSrc(null)
 
-        objectUrl = URL.createObjectURL(blob)
-        setThumbnailSrc(objectUrl)
-      } catch (error) {
-        console.warn(
-          '[THUMBNAIL LOAD FAILED]',
-          media._id,
-          error,
-        )
-      }
+  async function loadThumbnail() {
+    try {
+      const blob = media.isPrivate
+        ? await fetch(media.thumbnailUrl).then((response) => {
+            if (!response.ok) {
+              throw new Error('Private thumbnail request failed')
+            }
+            return response.blob()
+          })
+        : await getOrFetchThumbnail(
+            userId,
+            String(media._id),
+            media.thumbnailUrl,
+          )
+
+      if (!active) return
+
+      objectUrl = URL.createObjectURL(blob)
+      setThumbnailSrc(objectUrl)
+    } catch (error) {
+      console.warn('[THUMBNAIL LOAD FAILED]', media._id, error)
     }
+  }
 
-    if (!media.thumbnailUrl) {
-      setThumbnailSrc(null);
-      return;
-    }
-    
-    loadThumbnail()
+  loadThumbnail()
 
-    return () => {
-      active = false
+  return () => {
+    active = false
+    if (objectUrl) URL.revokeObjectURL(objectUrl)
+  }
+}, [
+  userId,
+  media._id,
+  media.thumbnailUrl,
+  media.isPrivate,
+  hasThumbnail,
+])
 
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl)
-      }
-    }
-  }, [
-    userId,
-    media._id,
-    media.thumbnailUrl,
-    isImage,
-  ])
 
   function handleKeyDown(event) {
     if (event.key === 'Enter' || event.key === ' ') {

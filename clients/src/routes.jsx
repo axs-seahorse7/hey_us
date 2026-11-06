@@ -8,6 +8,7 @@ import Login from './Authentication/Login/Login'
 import FolderView from './Layouts/FolderView'
 import ProtectedRoute from './Authentication/ProtectedRoute'
 import MediaCategoryLayout from './Layouts/MediaCategoryLayout'
+import PrivateAlbumLayout from './Layouts/PrivateAlbumLayout'
 
 const router = createBrowserRouter([
   {path: '/', element: <Login />},
@@ -24,6 +25,7 @@ const router = createBrowserRouter([
       { path: '/folders/:folderId', element: <FolderView />},
       { path: '/moments', element: <MomentsLayout /> },
       { path: '/favorites', element: <FavoritesLayout /> },
+      { path: '/private', element: <PrivateAlbumLayout /> },
       { path: '/videos', element: <MediaCategoryLayout category="videos" title="Videos" /> },
       { path: '/notes', element: <MediaCategoryLayout category="notes" title="Notes" /> },
       { path: '/files', element: <MediaCategoryLayout category="files" title="Files" /> },

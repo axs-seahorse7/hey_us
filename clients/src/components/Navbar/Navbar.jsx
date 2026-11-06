@@ -34,8 +34,6 @@ const menuItems = [
   { name: 'Notes', path: '/notes', icon: <FileTextFilled />, from: '#b794f6', to: '#6d3fd6' },
   { name: 'Files', path: '/files', icon: <FileFilled />, from: '#5eead4', to: '#0f9d8a' },
   { name: 'Favourites', path: '/favorites', icon: <HeartFilled />, from: '#ff9ec7', to: '#e0338f' },
-  { name: 'Recent', path: '/recent', icon: <ClockCircleFilled />, from: '#ffb84d', to: '#ff7a00' },
-  { name: 'Shot types', path: '/shot-types', icon: <CameraFilled />, from: '#5ac8fa', to: '#007aff' },
   { name: 'Private album', path: '/private', icon: <LockFilled />, from: '#b794f6', to: '#6d3fd6' },
   { name: 'Recycle bin', path: '/recycle-bin', icon: <DeleteFilled />, from: '#6ee7a0', to: '#1fa25a' },
   { name: 'Settings', path: '/settings', icon: <SettingFilled />, from: '#9a9cff', to: '#4f46e5' },

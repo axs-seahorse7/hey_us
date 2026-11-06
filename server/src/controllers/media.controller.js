@@ -42,6 +42,7 @@ export async function listFolderMedia(request, response, next) {
         owner: request.user.id,
         folder: folder._id,
         status: 'uploaded',
+        isPrivate: { $ne: true },
     })
     .sort({ createdAt: -1 })
     .lean();
@@ -68,6 +69,7 @@ export const getMedia = async (req, res) => {
       _id: mediaId,
       owner: req.user.id,
       status: 'uploaded',
+      isPrivate: { $ne: true },
     });
 
     if (!media) {
@@ -116,6 +118,7 @@ export const toggleFavorite = async (req, res, next) => {
       _id: mediaId,
       owner: req.user.id,
       status: 'uploaded',
+      isPrivate: { $ne: true },
       $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     })
 
@@ -248,6 +251,7 @@ export async function completeUpload(request, response, next) {
     const media = await Media.findOne({
       _id: mediaId,
       owner: request.user.id,
+      isPrivate: { $ne: true },
     });
 
     if (!media) {
@@ -346,6 +350,7 @@ export const getFolderMedia = async (req, res) => {
       folder: folder._id,
       owner: req.user.id,
       status: 'uploaded',
+      isPrivate: { $ne: true },
       $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     })
       .select(
@@ -417,6 +422,7 @@ export const getOriginalUrl = async (req, res) => {
       _id: mediaId,
       owner: req.user.id,
       status: 'uploaded',
+      isPrivate: { $ne: true },
     }).select('objectKey fileName');
 
     if (!media) {
@@ -456,6 +462,7 @@ export const getThumbnailUrl = async (req, res) => {
       _id: mediaId,
       owner: req.user.id,
       status: 'uploaded',
+      isPrivate: { $ne: true },
     }).select('thumbnailObjectKey');
 
     if (!media) {
@@ -503,6 +510,7 @@ export async function deleteMedia(request, response, next) {
       _id: mediaId,
       owner: request.user.id,
       status: 'uploaded',
+      isPrivate: { $ne: true },
     });
 
     if (!media) {

@@ -1,3 +1,4 @@
+
 import { createContext, useCallback, useContext, useState } from 'react'
 
 const MediaContext = createContext(null)
@@ -6,97 +7,99 @@ export function MediaProvider({ children }) {
   const [viewerOpen, setViewerOpen] = useState(false)
   const [viewerMedia, setViewerMedia] = useState([])
   const [viewerIndex, setViewerIndex] = useState(0)
+  const [viewerSource, setViewerSource] = useState('gallery')
   const [galleryImages, setGalleryImages] = useState([])
+  const [onViewerMediaRemoved, setOnViewerMediaRemoved] = useState(null)
 
-  const openViewer = useCallback((media, mediaList = [media]) => {
-    const index = mediaList.findIndex((item) => item._id === media._id)
+  const openViewer = useCallback(
+    (media, mediaList = [media], source = 'gallery', onMediaRemoved = null) => {
+      const index = mediaList.findIndex(
+        (item) => String(item._id) === String(media._id),
+      )
 
-    setViewerMedia(mediaList)
-    setViewerIndex(index >= 0 ? index : 0)
-    setViewerOpen(true)
-  }, [])
+      setViewerMedia(mediaList)
+      setViewerIndex(index >= 0 ? index : 0)
+      setViewerSource(source)
+      setOnViewerMediaRemoved(() => onMediaRemoved)
+      setViewerOpen(true)
+    },
+    [],
+  )
 
   const closeViewer = useCallback(() => {
     setViewerOpen(false)
+    setOnViewerMediaRemoved(null)
   }, [])
 
   const syncMediaItems = useCallback((updatedItems = []) => {
-    if (!updatedItems.length) return;
+    if (!updatedItems.length) return
 
     const updatesById = new Map(
-      updatedItems.map((item) => [String(item._id), item])
-    );
+      updatedItems.map((item) => [String(item._id), item]),
+    )
 
     const mergeUpdates = (currentItems) =>
       currentItems.map((item) => {
-        const updated = updatesById.get(String(item._id));
+        const updated = updatesById.get(String(item._id))
+        return updated ? { ...item, ...updated } : item
+      })
 
-        return updated ? { ...item, ...updated } : item;
-      });
-
-    setGalleryImages(mergeUpdates);
-    setViewerMedia(mergeUpdates);
-  }, []);
+    setGalleryImages(mergeUpdates)
+    setViewerMedia(mergeUpdates)
+  }, [])
 
   const nextMedia = useCallback(() => {
-    setViewerIndex((currentIndex) => {
-      if (currentIndex >= viewerMedia.length - 1) return currentIndex
-      return currentIndex + 1
-    })
+    setViewerIndex((index) =>
+      index >= viewerMedia.length - 1 ? index : index + 1,
+    )
   }, [viewerMedia.length])
 
   const previousMedia = useCallback(() => {
-    setViewerIndex((currentIndex) => {
-      if (currentIndex <= 0) return currentIndex
-      return currentIndex - 1
-    })
-  }, [viewerMedia.length])
+    setViewerIndex((index) => (index <= 0 ? index : index - 1))
+  }, [])
 
-  // Remove media from the currently opened viewer
-  const removeViewerMedia = useCallback((mediaId) => {
-    const id = String(mediaId);
+  const removeViewerMedia = useCallback(
+    (mediaId) => {
+      const id = String(mediaId)
 
-    // Remove from the gallery grid data.
-    setGalleryImages((currentMedia) =>
-      currentMedia.filter(
-        (item) => String(item._id) !== id
-      )
-    );
+      if (viewerSource === 'gallery') {
+        setGalleryImages((current) =>
+          current.filter((item) => String(item._id) !== id),
+        )
+      }
 
-    // Remove from the currently opened viewer.
-    setViewerMedia((currentMedia) => {
-      const deletedIndex = currentMedia.findIndex(
-        (item) => String(item._id) === id
-      );
+      setViewerMedia((current) => {
+        const deletedIndex = current.findIndex(
+          (item) => String(item._id) === id,
+        )
 
-      if (deletedIndex === -1) return currentMedia;
+        if (deletedIndex === -1) return current
 
-      const updatedMedia = currentMedia.filter(
-        (item) => String(item._id) !== id
-      );
+        const updated = current.filter(
+          (item) => String(item._id) !== id,
+        )
 
-      setViewerIndex((currentIndex) => {
-        if (updatedMedia.length === 0) {
-          setViewerOpen(false);
-          return 0;
-        }
+        setViewerIndex((currentIndex) => {
+          if (!updated.length) {
+            setViewerOpen(false)
+            return 0
+          }
 
-        if (deletedIndex < currentIndex) {
-          return currentIndex - 1;
-        }
+          if (deletedIndex < currentIndex) return currentIndex - 1
+          if (currentIndex >= updated.length) return updated.length - 1
 
-        if (currentIndex >= updatedMedia.length) {
-          return updatedMedia.length - 1;
-        }
+          return currentIndex
+        })
 
-        return currentIndex;
-      });
+        return updated
+      })
 
-      return updatedMedia;
-    });
-  }, []);
-
- 
+      if (viewerSource === 'private') {
+        onViewerMediaRemoved?.(id)
+      }
+    },
+    [viewerSource, onViewerMediaRemoved],
+  )
 
   const currentMedia = viewerMedia[viewerIndex] ?? null
 
@@ -106,6 +109,7 @@ export function MediaProvider({ children }) {
         viewerOpen,
         viewerMedia,
         viewerIndex,
+        viewerSource,
         currentMedia,
         openViewer,
         closeViewer,

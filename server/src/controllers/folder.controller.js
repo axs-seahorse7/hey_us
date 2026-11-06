@@ -44,6 +44,7 @@ async function serializeFolder(folder) {
   const itemCount = await Media.countDocuments({
     folder: folder._id,
     status: 'uploaded',
+    isPrivate: { $ne: true },
     $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
   });
 
@@ -140,7 +141,7 @@ export async function deleteFolder(request, response, next) {
       return response.status(400).json({ message: 'Default folders cannot be deleted.' });
     }
 
-    const itemCount = await Media.countDocuments({ folder: folder.id });
+    const itemCount = await Media.countDocuments({owner: request.user.id, folder: folder.id });
     if (itemCount > 0) {
       return response.status(409).json({ message: 'Move or delete this folder’s files before deleting it.' });
     }

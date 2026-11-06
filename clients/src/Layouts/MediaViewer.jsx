@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getFileIcon } from '../utils/fileIcon'
-import { Alert, Button, ConfigProvider, Modal, Tooltip, Typography, theme } from 'antd'
+import { Alert, Button, ConfigProvider, Modal, Tooltip, Typography, theme, Spin } from 'antd'
 import {
   ArrowLeftOutlined,
   DeleteOutlined,
@@ -21,6 +21,11 @@ import {
 
 import { useMedia } from '../context/MediaContext'
 import { useAuth } from '../Authentication/Context/AuthContext'
+import { usePrivateAlbum } from '../context/PrivateAlbumContext'
+import {
+  deletePrivateMedia,
+  getPrivateOriginalUrl,
+} from '../services/privateAlbum.service'
 
 import { getOrFetchOriginal, markOriginalViewed, removeCachedOriginal, removeCachedThumbnail } from '../services/mediaCache.service'
 import { deleteMedia, getOriginalUrl, toggleFavorite  } from '../services/media.service'
@@ -44,18 +49,22 @@ function MediaViewer() {
   const { user } = useAuth()
   const userId = user?.user?._id
   const {
-    viewerOpen,
-    viewerMedia,
-    viewerIndex,
-    closeViewer,
-    currentMedia,
-    nextMedia,
-    previousMedia,
-    removeViewerMedia,
-    galleryImages,
-    openViewer,
-    syncMediaItems,
-  } = useMedia()
+  viewerOpen,
+  viewerMedia,
+  viewerIndex,
+  viewerSource,
+  closeViewer,
+  currentMedia,
+  nextMedia,
+  previousMedia,
+  removeViewerMedia,
+  galleryImages,
+  openViewer,
+  syncMediaItems,
+} = useMedia()
+
+const { privateToken } = usePrivateAlbum()
+const isPrivateViewer = viewerSource === 'private'
 
   const [downloadNotifications, setDownloadNotifications] = useState([])
   const [favoriteUpdating, setFavoriteUpdating] = useState(false)
@@ -70,6 +79,21 @@ function MediaViewer() {
   const [audioDuration, setAudioDuration] = useState(0)
 
   const currentMediaType = getMediaType(currentMedia || {})
+  const getViewerOriginalUrl = useCallback(
+    async (mediaId) => {
+      if (isPrivateViewer) {
+        if (!privateToken) {
+          throw new Error('Private Album is locked. Unlock it again.')
+        }
+
+        const result = await getPrivateOriginalUrl(mediaId, privateToken)
+        return result.url
+      }
+
+      return getOriginalUrl(mediaId)
+    },
+    [isPrivateViewer, privateToken],
+  )
 
   const [activeVideoUrl, setActiveVideoUrl] = useState('')
   const [videoLoading, setVideoLoading] = useState(false)
@@ -190,7 +214,7 @@ function MediaViewer() {
     setAudioDuration(0)
     setAudioPlaying(false)
 
-    getOriginalUrl(String(currentMedia._id))
+    getViewerOriginalUrl(String(currentMedia._id))
       .then((url) => {
         if (cancelled) return
 
@@ -210,11 +234,12 @@ function MediaViewer() {
     return () => {
       cancelled = true
     }
-  }, [
+    }, [
     viewerOpen,
     currentMedia?._id,
     currentMediaType,
     userId,
+    getViewerOriginalUrl,
   ])
 
   useEffect(() => {
@@ -236,7 +261,7 @@ function MediaViewer() {
     setVideoLoading(true)
     setVideoError('')
 
-    getOriginalUrl(String(currentMedia._id))
+    getViewerOriginalUrl(String(currentMedia._id))
       .then((url) => {
         if (cancelled) return
         setActiveVideoUrl(url)
@@ -260,10 +285,10 @@ function MediaViewer() {
     currentMedia?._id,
     currentMediaType,
     userId,
+    getViewerOriginalUrl,
   ])
 
- 
- useEffect(() => {
+  useEffect(() => {
     if (
       !viewerOpen ||
       !currentMedia ||
@@ -279,9 +304,16 @@ function MediaViewer() {
     const mediaId = String(currentMedia._id)
 
     setOriginalError('')
-
-    // Reuse an already-created object URL immediately.
     const cachedUrl = originalUrlCacheRef.current.get(mediaId)
+
+    if (!isPrivateViewer) {
+      if (cachedUrl) {
+        setActiveOriginalMediaId(mediaId)
+        setActiveOriginalUrl(cachedUrl)
+        setOriginalLoading(false)
+        return
+      }
+    }
 
     if (cachedUrl) {
       setActiveOriginalMediaId(mediaId)
@@ -292,26 +324,42 @@ function MediaViewer() {
 
     setActiveOriginalMediaId('')
     setActiveOriginalUrl('')
-    setOriginalLoading(false)
+    setOriginalLoading(true)
     setOriginalImageLoaded(false)
 
-    getOrFetchOriginal(userId, mediaId, 'viewed', {
-      onCacheMiss: () => {
-        if (!cancelled) setOriginalLoading(true)
-      },
-    })
-      .then(async (blob) => {
-        if (cancelled) return
+    const loadOriginal = async () => {
+      if (isPrivateViewer) {
+        if (!privateToken) {
+          throw new Error('Private Album is locked.')
+        }
 
-        await markOriginalViewed(userId, mediaId).catch((error) => {
-          console.warn('Could not update media cache usage:', error)
-        })
+        const signedUrl = await getViewerOriginalUrl(mediaId)
+        const response = await fetch(signedUrl)
 
+        if (!response.ok) {
+          throw new Error(`Image download failed: ${response.status}`)
+        }
+
+        return response.blob()
+      }
+
+      const blob = await getOrFetchOriginal(userId, mediaId, 'viewed')
+
+      await markOriginalViewed(userId, mediaId).catch((error) => {
+        console.warn('Could not update media cache usage:', error)
+      })
+
+      return blob
+    }
+
+    loadOriginal().then((blob) => {
         if (cancelled) return
 
         const objectUrl = URL.createObjectURL(blob)
 
-        originalUrlCacheRef.current.set(mediaId, objectUrl)
+        if (!isPrivateViewer) {
+          originalUrlCacheRef.current.set(mediaId, objectUrl)
+        }
 
         setActiveOriginalMediaId(mediaId)
         setActiveOriginalUrl(objectUrl)
@@ -335,7 +383,11 @@ function MediaViewer() {
     currentMedia?._id,
     currentMediaType,
     userId,
+    isPrivateViewer,
+    privateToken,
+    getViewerOriginalUrl,
   ])
+
   // After the current original has loaded, preload at most the next two images.
   // Downloads are sequential, and stale preload runs stop before starting another item.
   useEffect(() => {
@@ -415,12 +467,18 @@ function MediaViewer() {
   }, [id, viewerOpen, closeViewer, galleryImages, openViewer])
 
   const handleClose = useCallback(() => {
+    if (isPrivateViewer) {
+      closeViewer()
+      return
+    }
+
     if (window.location.pathname.includes('/folders/')) {
       closeViewer()
-    } else {
-      navigate(location.state?.from || '/gallery')
+      return
     }
-  }, [navigate, location.state, closeViewer])
+
+    navigate(location.state?.from || '/gallery')
+  }, [isPrivateViewer, navigate, location.state, closeViewer])
 
   // --------------------------------------------------
   // Zoom helpers
@@ -684,25 +742,37 @@ function MediaViewer() {
       setDeleting(true)
       setDeleteError('')
 
-      await deleteMedia(currentMedia._id)
-      if (userId) {
-        const mediaId = String(currentMedia._id);
+      const mediaId = String(currentMedia._id)
 
-        await Promise.all([
-          removeCachedOriginal(userId, mediaId),
-          removeCachedThumbnail(userId, mediaId),
-        ]).catch((error) => {
-          console.warn('Could not remove deleted media from local cache:', error);
-        });
+      if (isPrivateViewer) {
+        if (!privateToken) {
+          throw new Error('Private Album is locked. Unlock it again.')
+        }
+
+        await deletePrivateMedia(mediaId, privateToken)
+      } else {
+        await deleteMedia(mediaId)
+
+        if (userId) {
+          await Promise.all([
+            removeCachedOriginal(userId, mediaId),
+            removeCachedThumbnail(userId, mediaId),
+          ]).catch((error) => {
+            console.warn('Could not remove deleted media from local cache:', error)
+          })
+        }
       }
 
-      removeViewerMedia(currentMedia._id)
+      removeViewerMedia(mediaId)
       setDeleteConfirmOpen(false)
-      
+
     } catch (error) {
       console.error('Failed to delete media:', error)
+
       setDeleteError(
-        error.response?.data?.message || error.message || 'Failed to delete media.',
+        error.response?.data?.message ||
+        error.message ||
+        'Failed to delete media.',
       )
     } finally {
       setDeleting(false)
@@ -867,31 +937,66 @@ function MediaViewer() {
                     />
                     {/* Loading indicator shown on current slide while fetching original */}
                     {isLoadingOriginal && (
-                      <div className="media-viewer__loading-badge">Loading original…</div>
+                      <div className="media-viewer__loading-badge">
+                        <Spin />
+                      </div>
                     )}
                     {isCurrent && originalError && (
                       <div className="media-viewer__loading-badge" role="alert">
                         {originalError}
                         <button
                           type="button"
-                          onClick={() => {
-                            setOriginalError('')
-                            setOriginalLoading(true)
-                            setOriginalImageLoaded(false)
-                            getOrFetchOriginal(userId, mediaId, 'viewed')
-                              .then((blob) => {
-                                const objectUrl = URL.createObjectURL(blob)
-                                if (activeObjectUrlRef.current) URL.revokeObjectURL(activeObjectUrlRef.current)
-                                activeObjectUrlRef.current = objectUrl
-                                setActiveOriginalMediaId(mediaId)
-                                setActiveOriginalUrl(objectUrl)
-                              })
-                              .catch((error) => {
-                                console.error('Original retry failed:', error)
-                                setOriginalError('Could not load the original image. Please try again.')
-                              })
-                              .finally(() => setOriginalLoading(false))
+                          onClick={async () => {
+                            try {
+                              setOriginalError('')
+                              setOriginalLoading(true)
+                              setOriginalImageLoaded(false)
+
+                              let blob
+
+                              if (isPrivateViewer) {
+                                if (!privateToken) {
+                                  throw new Error('Private Album is locked.')
+                                }
+
+                                const signedUrl = await getViewerOriginalUrl(mediaId)
+                                const response = await fetch(signedUrl)
+
+                                if (!response.ok) {
+                                  throw new Error(`Image download failed: ${response.status}`)
+                                }
+
+                                blob = await response.blob()
+                              } else {
+                                blob = await getOrFetchOriginal(userId, mediaId, 'viewed')
+
+                                await markOriginalViewed(userId, mediaId).catch((error) => {
+                                  console.warn('Could not update media cache usage:', error)
+                                })
+                              }
+
+                              const previousUrl = originalUrlCacheRef.current.get(mediaId)
+
+                              if (!isPrivateViewer && previousUrl) {
+                                URL.revokeObjectURL(previousUrl)
+                              }
+
+                              const objectUrl = URL.createObjectURL(blob)
+
+                              if (!isPrivateViewer) {
+                                originalUrlCacheRef.current.set(mediaId, objectUrl)
+                              }
+
+                              setActiveOriginalMediaId(mediaId)
+                              setActiveOriginalUrl(objectUrl)
+                            } catch (error) {
+                              console.error('Original retry failed:', error)
+                              setOriginalError('Could not load the original image. Please try again.')
+                            } finally {
+                              setOriginalLoading(false)
+                            }
                           }}
+
                         >Retry</button>
                       </div>
                     )}
@@ -908,7 +1013,8 @@ function MediaViewer() {
                       {media.fileName}
                     </Typography.Title>
 
-                    {audioLoading && <p>Loading audio...</p>}
+
+                    {audioLoading && <Spin />}
 
                     {audioError && (
                       <Alert type="error" message={audioError} showIcon />
@@ -964,7 +1070,7 @@ function MediaViewer() {
                 </div>
                 ) : mediaType === 'video' && isCurrent ? (
                 <div className="media-viewer__video">
-                  {videoLoading && <p>Loading video...</p>}
+                  {videoLoading && <Spin />}
 
                   {videoError && (
                     <Alert type="error" message={videoError} showIcon />

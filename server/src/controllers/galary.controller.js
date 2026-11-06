@@ -4,6 +4,7 @@ import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { isBlockedFile } from '../utils/fileValidation.js';
 
+
 import { s3 } from '../config/s3.js';
 import { Media } from '../models/Media.js';
 import { Folder } from '../models/Folder.js';
@@ -24,6 +25,7 @@ export const getAllMedia = async (req, res) => {
     const filter = {
       owner: req.user.id,
       status: 'uploaded',
+      isPrivate: { $ne: true },
       $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     };
 
