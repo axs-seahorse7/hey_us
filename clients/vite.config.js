@@ -1,17 +1,20 @@
-import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
-import tailwindcss from '@tailwindcss/vite'
 
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
 
-// https://vite.dev/config/
 export default defineConfig({
+  appType: 'spa',
   plugins: [
-    react(),     
+    react(),
     tailwindcss(),
   ],
-  server: { 
-      port: 5173, 
-      open: true, 
-      host: true,
+  server: {
+    port: 5173,
+    open: true,
+    host: true,
   },
-})
+  build: {
+    outDir: 'dist',
+  },
+});
