@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/www/index.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",
