@@ -143,6 +143,7 @@
   display: flex;
   overflow-x: auto;
   overflow-y: hidden;
+  column-gap: 0;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -164,6 +165,7 @@
   scroll-snap-stop: always;
   padding: 0;
   box-sizing: border-box;
+  padding: 0 3px;
 }
 
 .media-viewer__image-container {

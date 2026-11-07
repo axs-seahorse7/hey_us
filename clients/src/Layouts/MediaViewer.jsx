@@ -25,7 +25,7 @@ import { useAuth } from '../Authentication/Context/AuthContext'
 import { usePrivateAlbum } from '../context/PrivateAlbumContext'
 import { deletePrivateMedia, getPrivateOriginalUrl} from '../services/privateAlbum.service'
 
-import { getOrFetchOriginal, markOriginalViewed, removeCachedOriginal, removeCachedThumbnail } from '../services/mediaCache.service'
+import { cacheThumbnail, getOrFetchOriginal, markOriginalViewed, removeCachedOriginal, removeCachedThumbnail } from '../services/mediaCache.service'
 import { deleteMedia, getOriginalUrl, getRecycleBinOriginalUrl, toggleFavorite, permanentlyDeleteMedia, restoreMedia,} from '../services/media.service';
 import { getMediaType } from '../utils/mediaType'
 
@@ -967,10 +967,16 @@ console.log('[MediaViewer]', {
             const cachedOriginalUrl =
               originalUrlCacheRef.current.get(mediaId) || ''
 
-            const resolvedUrl =
-              isCurrent && activeOriginalMediaId === mediaId
+            const activeOriginal =
+              activeOriginalMediaId === mediaId
                 ? activeOriginalUrl
-                : cachedOriginalUrl
+                : ''
+
+            // Original always takes priority. Thumbnail is only a first-load fallback.
+            const resolvedUrl =
+              cachedOriginalUrl ||
+              activeOriginal ||
+              (isCurrent ? media.thumbnailUrl || '' : '')
 
             const isLoadingOriginal = isCurrent && originalLoading
             return (
@@ -1013,9 +1019,12 @@ console.log('[MediaViewer]', {
                       }}
                     />
                     {/* Loading indicator shown on current slide while fetching original */}
-                    {isLoadingOriginal && (
+                    {isLoadingOriginal && media.thumbnailUrl && (
                       <div className="media-viewer__loading-badge">
-                        <Spin />
+                        <img
+                          src={media.thumbnailUrl}
+                          alt="Loading..."
+                        />
                       </div>
                     )}
                     {isCurrent && originalError && (
