@@ -8,12 +8,15 @@ import galleryRoutes from "../routes/galary.routes.js"
 import mediaRoutes from '../routes/media.routes.js';
 import privateAlbumRoutes from '../routes/privateAlbum.routes.js'
 import recycleBinRoutes from '../routes/recycleBin.routes.js';
+import dns from "dns"
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const app = express();
 
 const allowedOrigin = [
   'http://localhost:5173',
   'http://10.92.243.36:5173',
+  'http://192.168.19.116:5173',
   'https://main.d2zfs631un3cz9.amplifyapp.com',
   'https://heyus.in',
 ];
@@ -51,6 +54,7 @@ const port = process.env.PORT ?? 4000;
 
 async function start() {
   if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is required. Add it to server/.env.');
+  if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required. Add it to server/.env.');
   if (process.env.MONGODB_URI) await mongoose.connect(process.env.MONGODB_URI);
   app.listen(port, () => console.log(`Dear Us API listening on port ${port}`));
 }

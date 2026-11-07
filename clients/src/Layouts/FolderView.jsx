@@ -24,6 +24,7 @@ import {
   completeUpload,
 } from '../services/media.service'
 import MediaGrid from '../components/Grids/MediaGrid'
+import { useMedia } from '../context/MediaContext'
 import './FolderView.css'
 
 
@@ -107,6 +108,7 @@ function FolderView() {
 
   const pendingUploads = useRef(0)
   const pendingThumbnailIds = useRef(new Set());
+  const { openViewer } = useMedia()
 
   const fetchMedia = useCallback(async () => {
     const data = await getFolderMedia(folderId)
@@ -318,8 +320,19 @@ function FolderView() {
         />
       </Flex>
     )
-  } else {
-    content = <MediaGrid groupedMedia={groupedMedia} />
+    } else {
+    content = (
+      <MediaGrid
+        groupedMedia={groupedMedia}
+        onMediaClick={(selectedMedia) => {
+          openViewer(
+            selectedMedia,
+            media,
+            'folder'
+          )
+        }}
+      />
+    )
   }
 
   return (

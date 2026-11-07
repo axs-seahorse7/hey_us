@@ -401,37 +401,52 @@ console.log('[MediaViewer]', {
   ])
 
   // After the current original has loaded, preload at most the next two images.
-  // Downloads are sequential, and stale preload runs stop before starting another item.
+  // After the current original has loaded, preload one previous
+  // and one next image, if available.
   useEffect(() => {
-    if (!viewerOpen || !currentMedia || !userId || !activeOriginalUrl || !originalImageLoaded) return
+    if (
+      !viewerOpen ||
+      !currentMedia ||
+      !userId ||
+      !activeOriginalUrl ||
+      !originalImageLoaded
+    ) return
 
     const runId = ++preloadRunRef.current
     let cancelled = false
 
-    async function preloadNextImages() {
-      const candidates = viewerMedia
-        .slice(viewerIndex + 1, viewerIndex + 3)
-        .filter((item) => item?.contentType?.startsWith('image/'))
+    async function preloadAdjacentImages() {
+      const candidates = [
+        viewerMedia[viewerIndex - 1],
+        viewerMedia[viewerIndex + 1],
+      ].filter((item) => item?.contentType?.startsWith('image/'))
 
       for (const item of candidates) {
         if (cancelled || preloadRunRef.current !== runId) return
 
         try {
           await getOrFetchOriginal(userId, String(item._id), 'prefetch')
+          console.log('[PRELOAD COMPLETE]', item._id)
         } catch (error) {
-          // A failed speculative preload is retried naturally when the user opens it.
           console.warn('Background media preload failed:', item._id, error)
         }
       }
     }
 
-    preloadNextImages()
+    preloadAdjacentImages()
 
     return () => {
       cancelled = true
     }
-  }, [viewerOpen, currentMedia?._id, viewerIndex, viewerMedia, userId, activeOriginalUrl, originalImageLoaded])
-
+  }, [
+    viewerOpen,
+    currentMedia?._id,
+    viewerIndex,
+    viewerMedia,
+    userId,
+    activeOriginalUrl,
+    originalImageLoaded,
+  ])
   // Release the active Blob URL when the viewer closes or this component unmounts.
   useEffect(() => {
     if (!viewerOpen) {
