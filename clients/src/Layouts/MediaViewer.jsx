@@ -136,6 +136,7 @@ console.log('[MediaViewer]', {
   const [originalError, setOriginalError] = useState('')
   const activeObjectUrlRef = useRef('')
   const originalUrlCacheRef = useRef(new Map())
+  const [, setOriginalUrlVersion] = useState(0)
   const preloadRunRef = useRef(0)
 
 
@@ -402,14 +403,15 @@ console.log('[MediaViewer]', {
 
   // After the current original has loaded, preload at most the next two images.
   // After the current original has loaded, preload one previous
-  // and one next image, if available.
   useEffect(() => {
     if (
       !viewerOpen ||
       !currentMedia ||
       !userId ||
       !activeOriginalUrl ||
-      !originalImageLoaded
+      !originalImageLoaded ||
+      isPrivateViewer ||
+      isRecycleBinViewer
     ) return
 
     const runId = ++preloadRunRef.current
@@ -424,11 +426,28 @@ console.log('[MediaViewer]', {
       for (const item of candidates) {
         if (cancelled || preloadRunRef.current !== runId) return
 
+        const mediaId = String(item._id)
+
+        if (originalUrlCacheRef.current.has(mediaId)) continue
+
         try {
-          await getOrFetchOriginal(userId, String(item._id), 'prefetch')
-          console.log('[PRELOAD COMPLETE]', item._id)
+          const blob = await getOrFetchOriginal(
+            userId,
+            mediaId,
+            'prefetch'
+          )
+
+          if (cancelled || preloadRunRef.current !== runId) return
+
+          const objectUrl = URL.createObjectURL(blob)
+
+          originalUrlCacheRef.current.set(mediaId, objectUrl)
+
+          setOriginalUrlVersion((version) => version + 1)
+
+          console.log('[ORIGINAL PRELOADED]', mediaId)
         } catch (error) {
-          console.warn('Background media preload failed:', item._id, error)
+          console.warn('[PRELOAD FAILED]', mediaId, error)
         }
       }
     }
@@ -446,18 +465,13 @@ console.log('[MediaViewer]', {
     userId,
     activeOriginalUrl,
     originalImageLoaded,
+    isPrivateViewer,
+    isRecycleBinViewer,
   ])
   // Release the active Blob URL when the viewer closes or this component unmounts.
   useEffect(() => {
     if (!viewerOpen) {
       preloadRunRef.current += 1
-
-      originalUrlCacheRef.current.forEach((url) => {
-        URL.revokeObjectURL(url)
-      })
-
-      originalUrlCacheRef.current.clear()
-
       revokeActiveObjectUrl()
     }
   }, [viewerOpen, revokeActiveObjectUrl])
@@ -950,19 +964,15 @@ console.log('[MediaViewer]', {
             const isCurrent = index === viewerIndex
             const mediaId = String(media._id)
             // Non-active slides use thumbnails only; the active slide uses its downloaded original.
-            const cachedOriginalUrl = isCurrent
-          ? originalUrlCacheRef.current.get(mediaId)
-          : ''
+            const cachedOriginalUrl =
+              originalUrlCacheRef.current.get(mediaId) || ''
 
-        const hasActiveOriginal =
-          isCurrent &&
-          (activeOriginalMediaId === mediaId || Boolean(cachedOriginalUrl))
+            const resolvedUrl =
+              isCurrent && activeOriginalMediaId === mediaId
+                ? activeOriginalUrl
+                : cachedOriginalUrl
 
-        const resolvedUrl = hasActiveOriginal
-          ? (activeOriginalUrl || cachedOriginalUrl)
-          : (media.thumbnailUrl || '')
             const isLoadingOriginal = isCurrent && originalLoading
-
             return (
               <div className="media-viewer__slide" key={media._id}>
                 {mediaType === 'image' || mediaType === 'raw' ? (
@@ -992,7 +1002,11 @@ console.log('[MediaViewer]', {
                       onTouchStart={handleTouchStart}
                       onTouchMove={handleTouchMove}
                       onLoad={() => {
-                        if (isCurrent && hasActiveOriginal) {
+                        if (
+                          isCurrent &&
+                          activeOriginalMediaId === mediaId &&
+                          activeOriginalUrl
+                        ) {
                           setOriginalImageLoaded(true)
                           setOriginalError('')
                         }
