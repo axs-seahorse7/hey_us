@@ -14,7 +14,7 @@ const app = express();
 const allowedOrigin = [
   'http://localhost:5173',
   'http://10.92.243.36:5173',
-  'http://192.168.19.117:5173',
+  'https://main.d2zfs631un3cz9.amplifyapp.com',
 ];
 
 app.use(
